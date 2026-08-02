@@ -28,7 +28,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
 const STORAGE_KEY = "amsystemFirebaseFallback";
-const APP_VERSION = "20260728-73";
+const APP_VERSION = "20260802-k5";
 const URL_PARAMS = new URLSearchParams(location.search);
 const OPEN_ADMIN_FROM_PORTAL = URL_PARAMS.get("admin") === "1";
 const PUBLIC_SITE_URL = "https://stunleyhoh001.github.io/simplesystem/";
@@ -2378,11 +2378,11 @@ async function uploadPaymentProofForOrder(file, orderId) {
   }
 }
 
-async function callConfirmOrderFunction(orderId) {
+async function callConfirmOrderFunction(orderId, reviewNote = "") {
   const { getFunctions, httpsCallable } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js");
   const functions = getFunctions(app, "asia-southeast1");
   const confirmOrderFunction = httpsCallable(functions, "confirmOrder");
-  return confirmOrderFunction({ orderId });
+  return confirmOrderFunction({ orderId, reviewNote });
 }
 
 async function callSyncSimplePayPointsFunction() {
@@ -3647,11 +3647,11 @@ function readinessSummary() {
 
 function cloudFunctionStatusReport() {
   return {
-    status: "deferred",
-    label: "后置阶段",
-    requiredForMvp: false,
+    status: "required",
+    label: "必须启用",
+    requiredForMvp: true,
     callable: "confirmOrder",
-    detail: "Cloud Functions 代码已准备，但当前仍允许管理员前端确认作为 MVP 回退；正式扩大使用前建议启用服务端确认。",
+    detail: "付款确认必须由服务端 Cloud Function 完成。前端不再直接发积分、更新配套或生成奖励。",
   };
 }
 
@@ -5505,23 +5505,28 @@ document.body.addEventListener("click", async (event) => {
     order.reviewNote = note.trim();
     order.reviewedAt = new Date().toISOString();
     try {
-      await callConfirmOrderFunction(order.id);
-      state = await loadState();
-      const syncedOrder = state.orders.find((item) => item.id === order.id);
-      if (syncedOrder) {
-        syncedOrder.reviewNote = order.reviewNote;
-        syncedOrder.reviewedAt = order.reviewedAt;
-        await saveState();
+      const response = await callConfirmOrderFunction(order.id, order.reviewNote);
+      const result = response?.data || {};
+
+      try {
+        state = await loadState();
+        renderAll();
+      } catch (refreshError) {
+        console.warn("Order confirmed, but refreshing the latest cloud state failed.", refreshError);
+        setSyncStatusText(
+          `付款已确认，但页面刷新资料失败：${refreshError?.code || refreshError?.name || "unknown"}`
+        );
       }
-      renderAll();
-      toast("订单已由云函数确认，积分和奖励已生成");
+
+      toast(result.alreadyPaid
+        ? "订单此前已经确认，无需重复发放积分"
+        : "订单已由服务端确认，积分、配套和奖励已同步");
     } catch (error) {
       console.error(error);
-      applyPaidOrder(state, order);
-      addAdminLog("确认付款", order.id, `金额 ${money(order.amount)} / 前端管理员确认 / ${order.confirmSummary || "无处理摘要"} / ${order.reviewNote || "无备注"}`);
-      await saveState();
-      renderAll();
-      toast("云函数未启用，已使用管理员前端确认付款");
+      const code = error?.code || "unknown";
+      const message = error?.message || "服务端确认失败";
+      toast(`确认失败：${code}。订单仍保持待处理，请勿重复手工发积分。`);
+      setSyncStatusText(`付款确认失败：${message}`);
     }
     return;
   }
