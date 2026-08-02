@@ -822,13 +822,13 @@
       refreshAffiliateButton();
     }
 
-    function setModule(moduleName, replace = false) {
+    function setModule(moduleName, replace = false, forceReload = false) {
       if (adminModules.has(moduleName) && !currentIsAdmin) {
         moduleName = "member";
         replace = true;
       }
       const module = modules[moduleName] || modules.member;
-      if (activeModuleName === moduleName && frame.getAttribute("src") === module.url) return;
+      if (!forceReload && activeModuleName === moduleName && frame.getAttribute("src") === module.url) return;
 
       activeModuleName = moduleName;
       contentTitle.textContent = module.title;
@@ -932,7 +932,7 @@
         affiliateUnlocked = true;
         refreshAffiliateButton();
       } else if (event.data?.type === "simplepos-open-module" && event.data?.module) {
-        setModule(event.data.module);
+        setModule(event.data.module, false, true);
       }
     });
 
