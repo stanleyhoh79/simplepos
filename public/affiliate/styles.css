@@ -669,3 +669,131 @@ th { color: var(--muted); font-size: 13px; }
   .plan-grid, .rule-grid, .risk-grid, .todo-grid, .mini-grid, .metrics, .grid-form, .grid-form.compact, .filter-bar, .breakdown-box { grid-template-columns: 1fr; }
   .tabs { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
 }
+
+/* ===== K4 guided package application ===== */
+.purchase-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.purchase-step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: #fff;
+  color: var(--muted);
+}
+
+.purchase-step span {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #edf4f1;
+  font-weight: 800;
+}
+
+.purchase-step.active {
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+}
+
+.purchase-step.active span {
+  background: var(--primary);
+  color: #fff;
+}
+
+.purchase-intro {
+  box-shadow: none;
+}
+
+.terms-note {
+  margin-top: 10px;
+  border-left: 4px solid var(--primary);
+  padding-left: 12px;
+  font-size: 14px;
+}
+
+.plan-card .button.selected {
+  background: var(--primary-dark);
+  color: #fff;
+}
+
+.selected-plan-panel {
+  border-color: var(--primary);
+}
+
+.order-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.order-summary-grid span {
+  display: grid;
+  gap: 6px;
+  border-radius: 8px;
+  padding: 14px;
+  background: #f3fbf7;
+  color: var(--muted);
+}
+
+.order-summary-grid strong {
+  color: var(--text);
+  font-size: 20px;
+}
+
+.purchase-confirm {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.confirm-check {
+  display: flex;
+  grid-template-columns: none;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.confirm-check input {
+  width: auto;
+  margin-top: 5px;
+}
+
+#submitPlanApplicationBtn {
+  width: 100%;
+  min-height: 52px;
+}
+
+@media (max-width: 900px) {
+  .purchase-flow,
+  .order-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .purchase-flow,
+  .order-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .purchase-step {
+    padding: 9px 10px;
+  }
+}
+

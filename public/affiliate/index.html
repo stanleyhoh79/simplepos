@@ -79,11 +79,44 @@
         </nav>
 
         <section id="memberPlans" class="tab-panel active">
-          <div class="panel">
+          <div class="purchase-flow" aria-label="首次购买流程">
+            <div class="purchase-step active"><span>1</span><strong>选择配套</strong></div>
+            <div class="purchase-step"><span>2</span><strong>填写付款资料</strong></div>
+            <div class="purchase-step"><span>3</span><strong>确认提交</strong></div>
+            <div class="purchase-step"><span>4</span><strong>等待后台确认</strong></div>
+          </div>
+
+          <div class="panel purchase-intro">
+            <p class="eyebrow">首次购买</p>
+            <h2>先选择适合的充值配套</h2>
+            <p>选择后再填写付款资料。提交申请不会立即发放积分，必须等待管理员核对付款并确认。</p>
+            <p class="terms-note">继续申请代表你已完成网站条款确认；营销联盟协议只在申请推广资格时另行确认。</p>
+          </div>
+
+          <div class="plan-grid" id="memberPlanCards"></div>
+
+          <div id="selectedPlanPanel" class="panel selected-plan-panel" hidden>
             <div class="panel-head">
               <div>
-                <h2>付款资料</h2>
-                <p>申请充值配套前，请填写付款方式和参考号，方便后台核对。</p>
+                <p class="eyebrow">已选择配套</p>
+                <h2 id="selectedPlanName">尚未选择</h2>
+              </div>
+              <button id="changePlanBtn" class="button ghost" type="button">重新选择</button>
+            </div>
+            <div class="order-summary-grid">
+              <span>金额<strong id="selectedPlanAmount">RM0</strong></span>
+              <span>预计积分<strong id="selectedPlanPoints">0</strong></span>
+              <span>订单类型<strong id="selectedPlanType">首充</strong></span>
+              <span>状态<strong>待后台确认</strong></span>
+            </div>
+          </div>
+
+          <div id="paymentStepPanel" class="panel" hidden>
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">付款资料</p>
+                <h2>填写付款记录</h2>
+                <p>付款参考号用于后台核对。付款证明可上传图片或 PDF。</p>
               </div>
             </div>
             <form id="paymentInfoForm" class="grid-form compact">
@@ -95,12 +128,19 @@
                   <option value="cash">现金</option>
                 </select>
               </label>
-              <label>付款参考号<input name="paymentRef" placeholder="交易编号 / 收据编号" /></label>
+              <label>付款参考号<input name="paymentRef" placeholder="交易编号 / 收据编号" required /></label>
               <label>备注<input name="paymentNote" placeholder="例如付款人姓名、银行名称" /></label>
               <label>付款证明<input name="paymentProof" type="file" accept="image/*,.pdf" /></label>
             </form>
+            <div class="purchase-confirm">
+              <label class="confirm-check">
+                <input id="confirmOrderDetails" type="checkbox" />
+                <span>我已检查配套、金额和付款资料，并了解积分将在管理员确认付款后发放。</span>
+              </label>
+              <button id="submitPlanApplicationBtn" class="button primary" type="button" disabled>确认提交配套申请</button>
+              <p id="purchaseStatus" class="help-text">请先选择配套。</p>
+            </div>
           </div>
-          <div class="plan-grid" id="memberPlanCards"></div>
           <div class="panel">
             <div class="panel-head"><h2>我的充值订单</h2></div>
             <div class="table-wrap">
@@ -513,7 +553,7 @@
     </main>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js?v=20260728-referral-correction"></script>
+    <script type="module" src="./app.js?v=20260802-k4"></script>
   </body>
 </html>
 
