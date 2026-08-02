@@ -177,27 +177,26 @@ check(
 
 check(
   includesAll("public/member/index.html", [
-    "会员中心",
-    "个人资料",
-    "简单营销联盟协议",
-    "网站条款与条件",
-    "退出登录",
-    "document.documentElement.classList.add(\"is-embedded\")",
-    "profileForm",
+    "id=\"dashboardView\"",
+    "id=\"profileView\"",
+    "id=\"profileForm\"",
     "../simplepay/index.html",
     "../affiliate/index.html",
+    "./script.js?v=20260802-1",
   ])
     && includesAll("public/member/script.js", [
-      "isEmbedded",
-      "memberProfiles",
+      "loadMemberProfileForUser",
+      "getMemberProfile",
+      "saveMemberProfile",
       "onAuthStateChanged",
-      "loadMemberProfileByEmail",
-      "updateDoc",
       "signOut",
-      "SimplePay、简单联盟等系统会使用最新资料",
+      "data-dashboard-module",
+      "simplepos-open-module",
     ])
     && includesAll("public/member/styles.css", [
       ".is-embedded .account-menu",
+      ".dashboard-status-grid",
+      ".dashboard-quick-grid",
     ]),
   "Member center owns the shared member profile used by SimplePay and Affiliate"
 );
