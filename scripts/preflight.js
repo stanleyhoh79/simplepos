@@ -182,7 +182,7 @@ check(
     "id=\"profileForm\"",
     "../simplepay/index.html",
     "../affiliate/index.html",
-    "./script.js?v=20260802-1",
+    "./script.js?v=20260802-3",
   ])
     && includesAll("public/member/script.js", [
       "loadMemberProfileForUser",

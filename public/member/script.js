@@ -345,26 +345,35 @@ async function loadPage(user) {
 
   const view = new URLSearchParams(window.location.search).get("view");
 
+  setStatus(authStatus, `已登录：${user.email}。正在读取会员主档...`);
+  const profile = await loadMemberProfileForUser(user);
+
+  if (profile) {
+    currentProfile = profile;
+    currentProfileId = profile.docId || profile.id;
+    fillForm(profile);
+    renderSummary(profile);
+    renderMeasurementHistory(profile);
+    setAccount(user, profile);
+  }
+
   if (view === "dashboard") {
     dashboardView.hidden = false;
-    setStatus(authStatus, "欢迎回到会员中心");
+    setStatus(
+      authStatus,
+      profile
+        ? "会员主档已读取。欢迎回到会员中心。"
+        : "尚未建立会员主档，可先进入个人资料完成填写。"
+    );
     return;
   }
 
-  setStatus(authStatus, `已登录：${user.email}。正在读取会员主档...`);
-  const profile = await loadMemberProfileForUser(user);
   if (!profile) {
     setStatus(authStatus, "尚未建立会员主档。请先完成个人资料。", true);
     emptyState.hidden = false;
     return;
   }
 
-  currentProfile = profile;
-  currentProfileId = profile.docId || profile.id;
-  fillForm(profile);
-  renderSummary(profile);
-  renderMeasurementHistory(profile);
-  setAccount(user, profile);
   profileView.hidden = false;
   setStatus(authStatus, "会员主档已读取。SimplePay、简单联盟等系统会使用最新资料并直接关联这份资料。");
   setStatus(formStatus, "你可以在这里更新会员资料。保存后，各系统会读取最新主档。");

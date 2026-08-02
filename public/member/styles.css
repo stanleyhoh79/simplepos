@@ -430,3 +430,64 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== 个人资料分组 ===== */
+.form-section {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+}
+
+.form-section legend {
+  padding: 0 8px;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.section-note {
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+label small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+input[readonly],
+textarea[readonly] {
+  background: #eef5f2;
+  color: var(--muted);
+  cursor: default;
+}
+
+.staff-records {
+  background: #f8fbfa;
+}
+
+.staff-records .section-grid {
+  margin-top: 2px;
+}
+
+@media (max-width: 780px) {
+  .section-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-section {
+    padding: 12px;
+  }
+}
+
