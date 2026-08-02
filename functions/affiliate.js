@@ -273,15 +273,14 @@ async function creditSimplePayWallet(tx, { order, buyer, plan, points, createdAt
   return true;
 }
 
-async function confirmOrderById(orderId, adminEmail) {
-  if (!orderId) {
-    throw new HttpsError("invalid-argument", "orderId is required.");
-  }
+async function confirmOrderById(orderId, adminEmail, reviewNote = "") {
+  const safeOrderId = safeExternalId(orderId);
+  const normalizedReviewNote = text(reviewNote).slice(0, 500);
 
-  const orderRef = db.collection("amsystemOrders").doc(orderId);
+  const orderRef = db.collection("amsystemOrders").doc(safeOrderId);
   const systemRef = db.collection("amsystem").doc("main");
 
-  await db.runTransaction(async (tx) => {
+  const result = await db.runTransaction(async (tx) => {
     const orderSnap = await tx.get(orderRef);
     if (!orderSnap.exists) {
       throw new HttpsError("not-found", "Order not found.");
@@ -289,7 +288,12 @@ async function confirmOrderById(orderId, adminEmail) {
 
     const order = orderSnap.data();
     if (order.status === "paid") {
-      return;
+      return {
+        alreadyPaid: true,
+        orderId: safeOrderId,
+        status: "paid",
+        paidAt: text(order.paidAt),
+      };
     }
     if (order.status !== "pending") {
       throw new HttpsError("failed-precondition", "Only pending orders can be confirmed.");
@@ -307,8 +311,21 @@ async function confirmOrderById(orderId, adminEmail) {
     if (!plan) {
       throw new HttpsError("not-found", "Plan not found.");
     }
-    if (!isValidPackageAmount(order.amount) || !isValidPackageAmount(plan.amount)) {
+    const orderAmount = Number(order.amount || 0);
+    const planAmount = Number(plan.amount || 0);
+    const pointChange = Number(plan.points || 0);
+    const validDays = Number(plan.validDays || 0);
+    if (!isValidPackageAmount(orderAmount) || !isValidPackageAmount(planAmount)) {
       throw new HttpsError("failed-precondition", `Package amount must be a multiple of RM${PACKAGE_UNIT_AMOUNT}.`);
+    }
+    if (orderAmount !== planAmount) {
+      throw new HttpsError("failed-precondition", "Order amount does not match the saved package snapshot.");
+    }
+    if (!Number.isFinite(pointChange) || pointChange <= 0) {
+      throw new HttpsError("failed-precondition", "Package points must be greater than zero.");
+    }
+    if (!Number.isFinite(validDays) || validDays <= 0) {
+      throw new HttpsError("failed-precondition", "Package validity days must be greater than zero.");
     }
 
     const buyer = userSnap.data();
@@ -319,7 +336,11 @@ async function confirmOrderById(orderId, adminEmail) {
     );
     const actualType = paidOrdersSnap.empty ? "first" : "repeat";
     const paidAt = new Date().toISOString();
-    const pointChange = Number(plan.points || 0);
+    const currentPackageUntil = text(buyer.packageUntil);
+    const packageBase = currentPackageUntil && new Date(currentPackageUntil) > new Date(paidAt)
+      ? currentPackageUntil
+      : paidAt;
+    const packageUntil = addDays(packageBase, validDays);
     const newBalance = Number(buyer.points || 0) + pointChange;
     const currentRepeatCredits = Number(buyer.repeatCredits || 0);
     const nextRepeatCredits = currentRepeatCredits;
@@ -361,6 +382,9 @@ async function confirmOrderById(orderId, adminEmail) {
       type: actualType,
       points: pointChange,
       paidAt,
+      reviewedAt: paidAt,
+      reviewedBy: adminEmail,
+      reviewNote: normalizedReviewNote,
       simplePayWalletSyncedAt: walletCredited ? paidAt : (order.simplePayWalletSyncedAt || paidAt),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -371,7 +395,7 @@ async function confirmOrderById(orderId, adminEmail) {
       repeatCredits: nextRepeatCredits,
       repeatCreditQueueAt: buyerQueueAt,
       repeatCooldownUntil: actualType === "repeat" ? addHours(paidAt, planRepeatCooldownHours(plan)) : (buyer.repeatCooldownUntil || ""),
-      packageUntil: addDays(paidAt, Number(plan.validDays || 0)),
+      packageUntil,
       level: Number(plan.amount || 0) >= 720 ? "高级推广用户" : "推广用户",
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
@@ -469,17 +493,41 @@ async function confirmOrderById(orderId, adminEmail) {
       }
     }
 
-    createAdminLog(tx, "确认付款", order.id, `金额 ${money(order.amount)}`, adminEmail);
+    const confirmationDetail = [
+      `金额 ${money(orderAmount)}`,
+      `积分 +${pointChange}`,
+      `配套有效至 ${packageUntil}`,
+      `SimplePay ${walletCredited ? "已入账" : "已存在"}`,
+      normalizedReviewNote ? `备注：${normalizedReviewNote}` : "无备注",
+    ].join(" / ");
+    createAdminLog(tx, "确认付款", order.id, confirmationDetail, adminEmail);
+
+    return {
+      alreadyPaid: false,
+      orderId: safeOrderId,
+      status: "paid",
+      type: actualType,
+      points: pointChange,
+      packageUntil,
+      walletCredited,
+      paidAt,
+    };
   });
 
-  return { ok: true };
+  return { ok: true, ...result };
 }
 
-exports.confirmOrder = onCall(async (request) => {
-  const adminEmail = assertAdmin(request);
-  const orderId = request.data && request.data.orderId;
-  return confirmOrderById(orderId, adminEmail);
-});
+exports.confirmOrder = onCall(
+  {
+    invoker: "public",
+  },
+  async (request) => {
+    const adminEmail = assertAdmin(request);
+    const orderId = request.data && request.data.orderId;
+    const reviewNote = request.data && request.data.reviewNote;
+    return confirmOrderById(orderId, adminEmail, reviewNote);
+  },
+);
 
 exports.syncAffiliateWalletPoints = onCall(async (request) => {
   const adminEmail = assertAdmin(request);
