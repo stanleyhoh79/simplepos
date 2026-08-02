@@ -59,7 +59,13 @@ function setSubmitEnabled() {
 }
 
 function nextUrl() {
-  return "../index.html?terms=accepted";
+  const params = new URLSearchParams(location.search);
+  const next = params.get("next");
+  if (next === "affiliate") {
+    const embed = params.get("embed") === "1" ? "&embed=1" : "";
+    return `./index.html?terms=accepted${embed}`;
+  }
+  return "../system.html?module=home";
 }
 
 function formatAcceptedAt(value) {

@@ -128,6 +128,7 @@ let state = null;
 let syncMessage = "Firestore：等待检测";
 let editingPlanId = "";
 let portalAdminViewApplied = false;
+let selectedPlanId = "";
 
 function isIgnorableSdkError(message) {
   return String(message || "").includes("INTERNAL ASSERTION FAILED: Pending promise was never set");
@@ -2533,6 +2534,7 @@ function renderMember() {
   renderMemberProfile(user);
   ensureStorageTestButton();
   renderMemberPlans(user);
+  renderSelectedPlan(user);
   renderMemberOrders(user);
   renderMemberOrderProofStatuses(user);
   renderMemberReferrals(user);
@@ -2729,6 +2731,129 @@ function ensureStorageTestButton() {
   proofField.insertAdjacentElement("afterend", button);
 }
 
+
+function selectedPlan() {
+  return (state?.plans || []).find((plan) => plan.id === selectedPlanId) || null;
+}
+
+function setPurchaseStep(step) {
+  document.querySelectorAll(".purchase-step").forEach((item, index) => {
+    item.classList.toggle("active", index + 1 <= step);
+  });
+}
+
+function renderSelectedPlan(user = currentUser()) {
+  const panel = document.querySelector("#selectedPlanPanel");
+  const paymentPanel = document.querySelector("#paymentStepPanel");
+  const submit = document.querySelector("#submitPlanApplicationBtn");
+  const confirm = document.querySelector("#confirmOrderDetails");
+  const status = document.querySelector("#purchaseStatus");
+  const plan = selectedPlan();
+
+  if (!panel || !paymentPanel) return;
+  panel.hidden = !plan;
+  paymentPanel.hidden = !plan;
+
+  document.querySelectorAll("[data-buy-plan]").forEach((button) => {
+    const active = Boolean(plan && button.dataset.buyPlan === plan.id);
+    button.classList.toggle("selected", active);
+    button.textContent = active ? "已选择" : "选择此配套";
+  });
+
+  if (!plan) {
+    setPurchaseStep(1);
+    if (status) status.textContent = "请先选择配套。";
+    if (submit) submit.disabled = true;
+    return;
+  }
+
+  const orderType = actualOrderType(state, user.id);
+  document.querySelector("#selectedPlanName").textContent = plan.name;
+  document.querySelector("#selectedPlanAmount").textContent = money(plan.amount);
+  document.querySelector("#selectedPlanPoints").textContent = points(plan.points);
+  document.querySelector("#selectedPlanType").textContent = orderType === "repeat" ? "复购" : "首充";
+  if (confirm) confirm.checked = false;
+  if (submit) submit.disabled = true;
+  if (status) status.textContent = "请填写付款资料，并勾选确认后提交。";
+  setPurchaseStep(2);
+  paymentPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function submitSelectedPlanApplication() {
+  if (!firebaseUser) return toast("请先使用 Google 登录");
+  const plan = selectedPlan();
+  if (!plan) return toast("请先选择充值配套");
+
+  const paymentFormElement = document.querySelector("#paymentInfoForm");
+  const confirm = document.querySelector("#confirmOrderDetails");
+  if (!paymentFormElement?.reportValidity()) return;
+  if (!confirm?.checked) return toast("请先确认配套、金额和付款资料");
+
+  const paymentForm = new FormData(paymentFormElement);
+  const paymentInfo = {
+    method: paymentForm.get("paymentMethod"),
+    ref: String(paymentForm.get("paymentRef") || "").trim(),
+    note: String(paymentForm.get("paymentNote") || "").trim(),
+  };
+  if (!paymentInfo.ref) return toast("请先填写付款参考号");
+
+  const user = currentUser();
+  const duplicateRefOrder = duplicatePaymentRef(paymentInfo.ref, user.id);
+  if (duplicateRefOrder && !window.confirm(`付款参考号已在订单 ${duplicateRefOrder.id} 使用过。\n\n如果这是同一笔付款，请不要重复申请；如果确认是新付款，点“确定”继续。`)) return;
+
+  const orderType = actualOrderType(state, user.id);
+  if (orderType === "repeat" && repeatCooldownRemaining(user) > 0) {
+    return toast(`复购冷却中，请 ${repeatCooldownText(user)} 后再申请`);
+  }
+  if (orderType === "repeat" && state.orders.some((order) => order.userId === user.id && order.type === "repeat" && order.status === "pending")) {
+    return toast("你已有待确认的复购订单，请先等待后台处理");
+  }
+
+  const submit = document.querySelector("#submitPlanApplicationBtn");
+  const status = document.querySelector("#purchaseStatus");
+  if (submit) submit.disabled = true;
+  if (status) status.textContent = "正在提交配套申请...";
+  setPurchaseStep(3);
+  toast("正在提交配套申请...");
+
+  const order = createOrder(state, user.id, plan.id, orderType, "pending", new Date().toISOString(), paymentInfo);
+  if (!order) {
+    if (submit) submit.disabled = false;
+    return toast(`配套金额不符合 RM${PACKAGE_UNIT_AMOUNT} 单位规则，请联系管理员更新配套`);
+  }
+
+  const proofFile = paymentFormElement.querySelector("[name='paymentProof']")?.files[0];
+  if (proofFile) {
+    const duplicateProofOrder = duplicateProofName(proofFile.name, user.id);
+    if (duplicateProofOrder && !window.confirm(`付款凭证文件名已在订单 ${duplicateProofOrder.id} 使用过。\n\n请确认不是重复上传同一张凭证。确定继续提交吗？`)) {
+      state.orders = state.orders.filter((item) => item.id !== order.id);
+      renderAll();
+      if (submit) submit.disabled = false;
+      return;
+    }
+    try {
+      toast("正在上传付款证明...");
+      Object.assign(order, await uploadPaymentProofForOrder(proofFile, order.id));
+    } catch (error) {
+      console.warn("Payment proof upload skipped.", error);
+      order.proofName = proofFile.name;
+      order.proofStatus = "failed";
+      order.proofError = uploadErrorMessage(error);
+      order.paymentNote = `${order.paymentNote || ""} / 付款证明暂未上传：${uploadErrorMessage(error)}`.trim();
+      toast(uploadErrorMessage(error));
+    }
+  }
+
+  await saveState();
+  selectedPlanId = "";
+  paymentFormElement.reset();
+  renderAll();
+  renderSelectedPlan(user);
+  setPurchaseStep(4);
+  if (status) status.textContent = "申请已提交，等待管理员确认付款。确认后积分才会发放。";
+  toast("配套申请已提交，等待后台确认付款");
+}
+
 function renderMemberPlans(user) {
   const nextType = actualOrderType(state, user.id);
   document.querySelector("#memberPlanCards").innerHTML = sanitizeHtml(state.plans.map((plan) => {
@@ -2741,7 +2866,7 @@ function renderMemberPlans(user) {
         <span>奖励池资格：每直接推荐 1 人解锁 1 个，最多 ${planRepeatCredits(plan)} 个 / 冷却：${planRepeatCooldownHours(plan)} 小时</span>
         <span>奖励：推荐 ${plan.firstRate}% / 下线复购 ${planDirectRepeatRate(plan)}% / 奖励池 ${planPoolRepeatRate(plan)}%</span>
         ${validAmount
-          ? `<button class="button primary" data-buy-plan="${plan.id}" data-buy-type="${nextType}">申请充值配套</button>`
+          ? `<button class="button primary" data-buy-plan="${plan.id}" data-buy-type="${nextType}">选择此配套</button>`
           : `<button class="button ghost" type="button" disabled>金额需为 RM${PACKAGE_UNIT_AMOUNT} 整数倍</button>`}
       </article>
     `;
@@ -4701,6 +4826,17 @@ document.querySelector("#testFirestoreBtn").addEventListener("click", async () =
   toast(cloudAvailable ? "云端保存成功" : "云端保存失败，请看状态提示");
 });
 
+document.querySelector("#confirmOrderDetails")?.addEventListener("change", (event) => {
+  const submit = document.querySelector("#submitPlanApplicationBtn");
+  if (submit) submit.disabled = !event.target.checked || !selectedPlan();
+  if (event.target.checked) setPurchaseStep(3);
+});
+
+document.querySelector("#paymentInfoForm")?.addEventListener("input", () => {
+  const status = document.querySelector("#purchaseStatus");
+  if (status && selectedPlan()) status.textContent = "付款资料已更新，请检查后勾选确认。";
+});
+
 document.addEventListener("click", async (event) => {
   if (event.target?.id !== "testStorageBtn") return;
   if (!firebaseUser) return toast("请先使用 Google 登录");
@@ -5318,49 +5454,20 @@ document.body.addEventListener("click", async (event) => {
   const buyPlan = event.target.closest("[data-buy-plan]");
   if (buyPlan) {
     if (!firebaseUser) return toast("请先使用 Google 登录");
-    const paymentForm = new FormData(document.querySelector("#paymentInfoForm"));
-    const paymentInfo = {
-      method: paymentForm.get("paymentMethod"),
-      ref: paymentForm.get("paymentRef").trim(),
-      note: paymentForm.get("paymentNote").trim(),
-    };
-    if (!paymentInfo.ref) return toast("请先填写付款参考号");
-    const user = currentUser();
-    const duplicateRefOrder = duplicatePaymentRef(paymentInfo.ref, user.id);
-    if (duplicateRefOrder && !window.confirm(`付款参考号已在订单 ${duplicateRefOrder.id} 使用过。\n\n如果这是同一笔付款，请不要重复申请；如果确认是新付款，点“确定”继续。`)) return;
-    const orderType = actualOrderType(state, user.id);
-    if (orderType === "repeat" && repeatCooldownRemaining(user) > 0) {
-      return toast(`复购冷却中，请 ${repeatCooldownText(user)} 后再申请`);
-    }
-    if (orderType === "repeat" && state.orders.some((order) => order.userId === user.id && order.type === "repeat" && order.status === "pending")) {
-      return toast("你已有待确认的复购订单，请先等待后台处理");
-    }
-    toast("正在提交配套申请...");
-    const order = createOrder(state, user.id, buyPlan.dataset.buyPlan, orderType, "pending", new Date().toISOString(), paymentInfo);
-    if (!order) return toast(`配套金额不符合 RM${PACKAGE_UNIT_AMOUNT} 单位规则，请联系管理员更新配套`);
-    const proofFile = document.querySelector("#paymentInfoForm [name='paymentProof']").files[0];
-    if (proofFile) {
-      const duplicateProofOrder = duplicateProofName(proofFile.name, user.id);
-      if (duplicateProofOrder && !window.confirm(`付款凭证文件名已在订单 ${duplicateProofOrder.id} 使用过。\n\n请确认不是重复上传同一张凭证。确定继续提交吗？`)) {
-        state.orders = state.orders.filter((item) => item.id !== order.id);
-        renderAll();
-        return;
-      }
-      try {
-        toast("正在上传付款证明...");
-        Object.assign(order, await uploadPaymentProofForOrder(proofFile, order.id));
-      } catch (error) {
-        console.warn("Payment proof upload skipped.", error);
-        order.proofName = proofFile.name;
-        order.proofStatus = "failed";
-        order.proofError = uploadErrorMessage(error);
-        order.paymentNote = `${order.paymentNote || ""} / 付款证明暂未上传：${uploadErrorMessage(error)}`.trim();
-        toast(uploadErrorMessage(error));
-      }
-    }
-    await saveState();
-    renderAll();
-    toast("配套申请已提交，等待后台确认付款");
+    selectedPlanId = buyPlan.dataset.buyPlan;
+    renderSelectedPlan(currentUser());
+    return;
+  }
+
+  if (event.target.closest("#changePlanBtn")) {
+    selectedPlanId = "";
+    renderSelectedPlan(currentUser());
+    document.querySelector("#memberPlanCards")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  if (event.target.closest("#submitPlanApplicationBtn")) {
+    await submitSelectedPlanApplication();
     return;
   }
 
