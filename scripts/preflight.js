@@ -25,10 +25,15 @@ function includesAll(file, tokens) {
 check(
   includesAll("public/index.html", [
     "onAuthStateChanged",
-    "simplepos-homepage-settings",
-    "极简养生系统 | 轻盈健康的生活从养生开始",
-    "极简养生系统 · 简介",
+    "simplepos-homepage-settings-v2",
+    "极简养生计划",
+    "进入会员系统",
     "./login.html?next=./system.html?module=home",
+    "#about",
+    "#process",
+    "#drinks",
+    "#refund",
+    "#faq",
   ])
     && includesAll("public/system.html", [
       "workspaceShell",
@@ -64,7 +69,7 @@ check(
       "adminEmail",
       "isAdminUser",
     ]),
-  "Portal exposes the core systems, admin settings, and owns the shared Google login"
+  "Portal exposes the public wellness homepage, core systems, admin settings, and shared Google login"
 );
 
 check(
@@ -85,30 +90,40 @@ check(
 check(
   includesAll("public/index.html", [
     "logoDataUrl",
-    "brandImage",
-    "footerImage"
+    "brandLogo",
+    "heroImage",
+    "imageDataUrl"
   ]) && includesAll("public/admin-homepage.html", [
-    "settingBrandLogo",
-    "clearBrandLogoBtn",
-    "shrinkLogo",
-    "logoDataUrl"
+    "logoFile",
+    "heroImageFile",
+    "data-drink-file",
+    "shrink",
+    "logoDataUrl",
+    "imageDataUrl"
   ]),
-  "Homepage settings support a custom compressed brand logo"
+  "Homepage settings support compressed brand, hero, and product images"
 );
 
 check(
   includesAll("public/index.html", [
-    "navArticles",
-    "showSubmenuArticle",
-    "submenuArticle"
+    "featureGrid",
+    "processGrid",
+    "drinkGrid",
+    "faqList",
+    "apply(raw)"
   ])
     && includesAll("public/admin-homepage.html", [
-      "submenuArticleEditors",
-      "renderSubmenuArticleEditors",
-      "collectSubmenuArticles",
-      "navArticles"
+      "featureEditors",
+      "processEditors",
+      "drinkEditors",
+      "faqEditors",
+      "repeatEditors",
+      "read()",
+      "settingsForm",
+      "portalSettings",
+      "homepage"
     ]),
-  "Sub-navigation titles stay synchronized with their long-form homepage articles"
+  "Homepage content blocks stay synchronized with the administrator editor"
 );
 
 check(
