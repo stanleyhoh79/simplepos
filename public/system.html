@@ -1,0 +1,997 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <title>系统工作台 | 极简养生</title>
+  <style>
+    :root {
+      --brand: #0f766e;
+      --line: #e5e7eb;
+      --muted: #6b7280;
+      --panel: #f7f7f5;
+      --text: #071d1a;
+      --paper: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: #fff;
+    }
+
+    .workspace {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      background: #fff;
+    }
+
+    .workspace.is-collapsed {
+      grid-template-columns: 82px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 18px;
+      padding: 18px 14px;
+      border-right: 1px solid var(--line);
+      background: var(--panel);
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 52px;
+      padding: 4px 8px;
+    }
+
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 28px;
+      font-weight: 900;
+    }
+
+    .brand-name {
+      min-width: 0;
+      font-size: 24px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .collapse-btn {
+      width: 38px;
+      height: 38px;
+      margin-left: auto;
+      border: 0;
+      border-radius: 999px;
+      background: #fff;
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .nav-list,
+    .bottom-nav {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .nav-button {
+      width: 100%;
+      min-height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 18px;
+      font-weight: 900;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .nav-button[hidden] {
+      display: none !important;
+    }
+
+    .nav-button:hover,
+    .nav-button.is-active {
+      background: var(--paper);
+      box-shadow: 0 1px 3px rgba(17, 24, 39, .08);
+    }
+
+    .nav-button.is-locked {
+      opacity: .42;
+      cursor: not-allowed;
+    }
+
+    .nav-button.is-locked:hover {
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .nav-icon {
+      width: 30px;
+      height: 30px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      background: #fff;
+      color: var(--brand);
+      font-size: 17px;
+      font-weight: 900;
+    }
+
+    .bottom-nav {
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .member-menu-panel {
+      display: grid;
+      gap: 6px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--paper);
+      box-shadow: 0 14px 35px rgba(17, 24, 39, .12);
+    }
+
+    .member-menu-panel[hidden] {
+      display: none;
+    }
+
+    .admin-nav[hidden] {
+      display: none;
+    }
+
+    .member-menu-row {
+      width: 100%;
+      min-height: 52px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      border: 0;
+      border-radius: 12px;
+      padding: 10px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 16px;
+      font-weight: 900;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .member-menu-row:hover,
+    .member-menu-row.is-active {
+      background: var(--panel);
+    }
+
+    .member-menu-icon {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      background: var(--panel);
+      color: var(--brand);
+      font-weight: 900;
+    }
+
+    .member-menu-row small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.3;
+    }
+
+    .member-menu-divider {
+      height: 1px;
+      margin: 6px 4px;
+      background: var(--line);
+    }
+
+    .account-panel {
+      display: grid;
+      gap: 8px;
+      padding: 8px 4px 2px;
+    }
+
+    .account-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .account-email {
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+
+    .logout-button {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 15px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .logout-button:disabled {
+      cursor: wait;
+      opacity: .65;
+    }
+
+    .workspace.is-collapsed .brand-name,
+    .workspace.is-collapsed .nav-label,
+    .workspace.is-collapsed .member-menu-panel {
+      display: none;
+    }
+
+    .workspace.is-collapsed .brand-row {
+      justify-content: center;
+      padding: 4px 0;
+    }
+
+    .workspace.is-collapsed .collapse-btn {
+      position: absolute;
+      left: 62px;
+      top: 18px;
+      border: 1px solid var(--line);
+    }
+
+    .workspace.is-collapsed .nav-button {
+      justify-content: center;
+      padding: 12px;
+    }
+
+    .workspace.is-collapsed .nav-icon {
+      width: 36px;
+      height: 36px;
+    }
+
+    .content {
+      min-width: 0;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: 64px minmax(0, 1fr);
+      background: #fff;
+    }
+
+    .content-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, .92);
+    }
+
+    .content-title {
+      display: grid;
+      gap: 2px;
+    }
+
+    .content-title strong {
+      font-size: 20px;
+    }
+
+    .content-title span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .small-button {
+      min-height: 38px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-weight: 900;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .frame-wrap {
+      min-height: 0;
+      position: relative;
+      background: #fff;
+    }
+
+    .empty-workspace {
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: var(--muted);
+      text-align: center;
+      font-weight: 900;
+    }
+
+    .empty-workspace[hidden] {
+      display: none;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border: 0;
+      background: #fff;
+    }
+
+    .loading {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: #fff;
+      color: var(--muted);
+      font-weight: 900;
+      z-index: 2;
+    }
+
+    .loading.hidden {
+      display: none;
+    }
+
+    @media (max-width: 780px) {
+      .workspace,
+      .workspace.is-collapsed {
+        grid-template-columns: 72px minmax(0, 1fr);
+      }
+
+      .sidebar {
+        padding: 12px 8px;
+      }
+
+      .brand-name,
+      .nav-label,
+      .workspace.is-collapsed .member-menu-panel {
+        display: none;
+      }
+
+      .brand-row,
+      .nav-button {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
+      }
+
+      .collapse-btn {
+        display: none;
+      }
+
+      .content {
+        grid-template-rows: 58px minmax(0, 1fr);
+      }
+
+      .content-topbar {
+        padding: 0 10px;
+      }
+
+      .content-title strong {
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="workspace" id="workspaceShell">
+    <aside class="sidebar" aria-label="系统导航">
+      <div class="brand-row">
+        <span class="brand-mark">简</span>
+        <span class="brand-name">极简养生</span>
+        <button class="collapse-btn" id="collapseBtn" type="button" aria-label="缩小左边导航">‹</button>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-button" type="button" data-module="experience" hidden>
+          <span class="nav-icon">验</span>
+          <span class="nav-label">极简养生计划体验版</span>
+        </button>
+        <button class="nav-button" type="button" data-module="checkin">
+          <span class="nav-icon">打</span>
+          <span class="nav-label">每日打卡</span>
+        </button>
+        <button class="nav-button" type="button" data-module="measurement">
+          <span class="nav-icon">测</span>
+          <span class="nav-label">每周测量</span>
+        </button>
+        <button class="nav-button" type="button" data-module="simplepay">
+          <span class="nav-icon">付</span>
+          <span class="nav-label">简单支付</span>
+        </button>
+        <button class="nav-button" type="button" data-module="affiliate">
+          <span class="nav-icon">盟</span>
+          <span class="nav-label">简单联盟</span>
+        </button>
+        <button class="nav-button" type="button" data-module="pos">
+          <span class="nav-icon">POS</span>
+          <span class="nav-label">简单POS</span>
+        </button>
+      </nav>
+
+      <div class="admin-nav" id="adminNav" hidden>
+        <button class="nav-button" id="adminMenuBtn" type="button" aria-expanded="false">
+          <span class="nav-icon">设</span>
+          <span class="nav-label">后台设置</span>
+        </button>
+        <div class="member-menu-panel" id="adminMenuPanel" hidden>
+          <button class="member-menu-row" type="button" data-admin-module="dashboardAdmin">
+            <span class="member-menu-icon">数</span>
+            <span>全局数据看板<small>会员、打卡、测量、支付、联盟与 POS 总览</small></span>
+            <span>›</span>
+          </button>
+          <button class="member-menu-row" type="button" data-admin-module="homepageAdmin">
+            <span class="member-menu-icon">页</span>
+            <span>网页设置<small>首页、导航、文字与入口显示</small></span>
+            <span>›</span>
+          </button>
+          <button class="member-menu-row" type="button" data-admin-module="experienceAdmin" hidden>
+            <span class="member-menu-icon">验</span>
+            <span>体验版首页设置<small>标题、引导步骤与体验完结说明</small></span>
+            <span>›</span>
+          </button>
+          <button class="member-menu-row" type="button" data-admin-module="posAdmin">
+            <span class="member-menu-icon">POS</span>
+            <span>POS 后台<small>分行、员工、库存、报告与模板</small></span>
+            <span>›</span>
+          </button>
+          <button class="member-menu-row" type="button" data-admin-module="simplepayAdmin">
+            <span class="member-menu-icon">付</span>
+            <span>SimplePay 后台<small>商家审核、退款、结算与风控</small></span>
+            <span>›</span>
+          </button>
+          <button class="member-menu-row" type="button" data-admin-module="affiliateAdmin">
+            <span class="member-menu-icon">盟</span>
+            <span>联盟后台<small>订单、奖励、提现与会员关系</small></span>
+            <span>›</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="bottom-nav">
+        <button class="nav-button" id="memberMenuBtn" type="button" aria-expanded="false">
+          <span class="nav-icon">会</span>
+          <span class="nav-label">会员中心</span>
+        </button>
+        <div class="member-menu-panel" id="memberMenuPanel" hidden>
+          <button class="member-menu-row" type="button" data-member-module="profile">
+            <span class="member-menu-icon">资</span>
+            <span>个人资料<small>查看、编辑与更新记录</small></span>
+            <span>›</span>
+          </button>
+          <button class="member-menu-row" type="button" data-member-module="agreement">
+            <span class="member-menu-icon">盟</span>
+            <span>简单营销联盟协议<small>推广大使协议确认</small></span>
+            <span>›</span>
+          </button>
+          <button class="member-menu-row" type="button" data-member-module="terms">
+            <span class="member-menu-icon">条</span>
+            <span>网站条款与条件<small>条款公示与确认记录</small></span>
+            <span>›</span>
+          </button>
+          <div class="member-menu-divider"></div>
+          <div class="account-panel" aria-label="登录状态">
+            <span class="account-label" id="userMeta">正在检查登录状态...</span>
+            <strong class="account-email" id="accountEmail">正在检查...</strong>
+            <button class="logout-button" id="workspaceLogoutBtn" type="button">退出登录</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <section class="content">
+      <header class="content-topbar">
+        <div class="content-title">
+          <strong id="contentTitle">会员中心</strong>
+          <span id="contentHint">会员资料、健康档案与账户信息</span>
+        </div>
+        <div class="top-actions">
+          <a class="small-button" href="./index.html">首页</a>
+          <button class="small-button" id="openStandaloneBtn" type="button">独立打开</button>
+        </div>
+      </header>
+      <div class="frame-wrap">
+        <div class="empty-workspace" id="emptyWorkspace"></div>
+        <div class="loading" id="loadingState">正在载入系统...</div>
+        <iframe id="systemFrame" title="系统内容"></iframe>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getAuth,
+      browserLocalPersistence,
+      onAuthStateChanged,
+      setPersistence,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    let configModule;
+    try {
+      configModule = await import("./shared/firebase-config.local.js");
+    } catch {
+      configModule = await import("./shared/firebase-config.js");
+    }
+
+    const app = initializeApp(configModule.firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    await setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+    const workspaceShell = document.querySelector("#workspaceShell");
+    const collapseBtn = document.querySelector("#collapseBtn");
+    const frame = document.querySelector("#systemFrame");
+    const emptyWorkspace = document.querySelector("#emptyWorkspace");
+    const loadingState = document.querySelector("#loadingState");
+    const contentTitle = document.querySelector("#contentTitle");
+    const contentHint = document.querySelector("#contentHint");
+    const userMeta = document.querySelector("#userMeta");
+    const accountEmail = document.querySelector("#accountEmail");
+    const workspaceLogoutBtn = document.querySelector("#workspaceLogoutBtn");
+    const openStandaloneBtn = document.querySelector("#openStandaloneBtn");
+    const memberMenuBtn = document.querySelector("#memberMenuBtn");
+    const memberMenuPanel = document.querySelector("#memberMenuPanel");
+    const adminNav = document.querySelector("#adminNav");
+    const adminMenuBtn = document.querySelector("#adminMenuBtn");
+    const adminMenuPanel = document.querySelector("#adminMenuPanel");
+    const navButtons = [...document.querySelectorAll("[data-module]")];
+    const memberMenuActions = [...document.querySelectorAll("[data-member-module]")];
+    const adminMenuActions = [...document.querySelectorAll("[data-admin-module]")];
+    const loginNext = "./system.html?module=home";
+    const unifiedLoginKey = "simplepos-unified-google-user";
+    const loginReturnKey = "simplepos-login-returning";
+    const moduleVersion = "workspace-home1";
+    const adminEmail = String(configModule.adminEmail || "").trim().toLowerCase();
+    const memberModules = new Set(["member", "profile", "agreement", "terms"]);
+    const adminModules = new Set(["dashboardAdmin", "homepageAdmin", "experienceAdmin", "posAdmin", "simplepayAdmin", "affiliateAdmin"]);
+    let activeModuleName = "";
+    let initialModuleLoaded = false;
+    let hasConfirmedUser = false;
+    let currentIsAdmin = false;
+    let affiliateUnlocked = true;
+    let loginRedirectTimer = null;
+
+    const modules = {
+      home: {
+        title: "",
+        hint: "",
+        url: ""
+      },
+      experience: {
+        title: "极简养生计划体验版",
+        hint: "新会员体验入口，内容将逐步开放",
+        url: `./experience/index.html?embed=1&v=${moduleVersion}`
+      },
+      checkin: {
+        title: "每日打卡",
+        hint: "今日记录、最近 7 天与打卡完成率",
+        url: `./checkin/index.html?embed=1&v=${moduleVersion}`
+      },
+      measurement: {
+        title: "每周测量",
+        hint: "基线对照、每周变化与阶段成果",
+        url: `./measurement/index.html?embed=1&v=${moduleVersion}`
+      },
+      simplepay: {
+        title: "简单支付",
+        hint: "付款、收款、退款、结算",
+        url: `./simplepay/index.html?embed=1&v=${moduleVersion}`
+      },
+      affiliate: {
+        title: "简单联盟",
+        hint: "推荐、协议、佣金与会员关系",
+        url: `./affiliate/index.html?embed=1&v=${moduleVersion}`
+      },
+      pos: {
+        title: "简单POS",
+        hint: "下单、收银、库存与报告",
+        url: `./pos/index.html?embed=1&v=${moduleVersion}`
+      },
+      member: {
+        title: "会员中心",
+        hint: "请选择左侧会员功能",
+        url: ""
+      },
+      profile: {
+        title: "账户资料",
+        hint: "会员主档与账户信息",
+        url: `./member/index.html?embed=1&v=${moduleVersion}`
+      },
+      customer: {
+        title: "个人资料",
+        hint: "会员主档、健康资料与进度追踪",
+        url: `./customer/index.html?embed=1&v=${moduleVersion}`
+      },
+      agreement: {
+        title: "简单营销联盟协议",
+        hint: "推广大使协议与电子确认",
+        url: `./affiliate/agreement.html?embed=1&v=${moduleVersion}`
+      },
+      terms: {
+        title: "网站条款与条件",
+        hint: "条款公示与会员确认记录",
+        url: `./affiliate/terms.html?embed=1&v=${moduleVersion}`
+      },
+      homepageAdmin: {
+        title: "网页设置",
+        hint: "首页、导航、文字与入口显示",
+        url: `./admin-homepage.html?embed=1&v=${moduleVersion}`
+      },
+      dashboardAdmin: {
+        title: "全局数据看板",
+        hint: "统一查看会员、计划、支付、联盟与 POS 关键数据",
+        url: `./admin-dashboard.html?embed=1&v=${moduleVersion}`
+      },
+      experienceAdmin: {
+        title: "体验版首页设置",
+        hint: "新会员体验页的标题、引导与完结提示",
+        url: `./admin-experience.html?embed=1&v=${moduleVersion}`
+      },
+      posAdmin: {
+        title: "POS 后台",
+        hint: "分行、员工、商品审核、库存、报告和打印模板",
+        url: `./pos/index.html?embed=1&v=${moduleVersion}`
+      },
+      simplepayAdmin: {
+        title: "SimplePay 后台",
+        hint: "商家审核、退款、结算、风控和权限",
+        url: `./simplepay/index.html?role=admin&embed=1&v=${moduleVersion}`
+      },
+      affiliateAdmin: {
+        title: "简单联盟后台",
+        hint: "订单、奖励、提现、风控与会员关系",
+        url: `./affiliate/index.html?embed=1&admin=1&v=${moduleVersion}`
+      }
+    };
+
+    // The member archive has one clear entry. Older customer URLs stay compatible.
+    modules.profile.title = "个人资料";
+    modules.profile.hint = "会员主档、编辑资料与更新记录";
+    delete modules.customer;
+
+    function getInitialModule() {
+      const params = new URLSearchParams(window.location.search);
+      const module = params.get("module") || "home";
+      if (module === "customer" || module === "experience") return "home";
+      return modules[module] ? module : "home";
+    }
+
+    function readUnifiedLoginHint() {
+      try {
+        return JSON.parse(localStorage.getItem(unifiedLoginKey) || "null");
+      } catch {
+        return null;
+      }
+    }
+
+    function hasRecentLoginHint() {
+      const hint = readUnifiedLoginHint();
+      if (!hint?.updatedAt) return false;
+      const updatedAt = Date.parse(hint.updatedAt);
+      if (!Number.isFinite(updatedAt)) return false;
+      return Date.now() - updatedAt < 1000 * 60 * 60 * 24 * 14;
+    }
+
+    function hasFreshLoginReturn() {
+      try {
+        const value = Number(sessionStorage.getItem(loginReturnKey) || "0");
+        return Number.isFinite(value) && Date.now() - value < 1000 * 20;
+      } catch {
+        return false;
+      }
+    }
+
+    function redirectToLogin(force = false) {
+      if (!force && (auth.currentUser || hasRecentLoginHint() || hasFreshLoginReturn())) return;
+      window.location.replace(`./login.html?next=${encodeURIComponent(loginNext)}`);
+    }
+
+    function rememberUnifiedLogin(user) {
+      try {
+        localStorage.setItem(unifiedLoginKey, JSON.stringify({
+          email: user.email || "",
+          uid: user.uid || "",
+          displayName: user.displayName || "",
+          updatedAt: new Date().toISOString()
+        }));
+      } catch {}
+    }
+
+    function clearUnifiedLogin() {
+      try {
+        localStorage.removeItem(unifiedLoginKey);
+        localStorage.removeItem("simplepayUnifiedUser");
+        localStorage.removeItem("simpleposPortalUserHint");
+        sessionStorage.removeItem(loginReturnKey);
+      } catch {}
+    }
+
+    function setAccountPanel(status, email, canLogout = false) {
+      userMeta.textContent = status;
+      accountEmail.textContent = email || "未登录";
+      workspaceLogoutBtn.disabled = !canLogout;
+      workspaceLogoutBtn.textContent = canLogout ? "退出登录" : "等待登录...";
+    }
+
+    function hydrateAccountPanelFromHint() {
+      const hint = readUnifiedLoginHint();
+      if (hint?.email) {
+        setAccountPanel("登录状态同步中", hint.email, true);
+      } else {
+        setAccountPanel("正在检查登录状态", "正在检查...", false);
+      }
+    }
+
+    function setMemberMenuOpen(open) {
+      memberMenuPanel.hidden = !open;
+      memberMenuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      memberMenuBtn.classList.toggle("is-active", open || memberModules.has(activeModuleName));
+    }
+
+    function setAdminMenuOpen(open) {
+      if (!currentIsAdmin) open = false;
+      adminMenuPanel.hidden = !open;
+      adminMenuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      adminMenuBtn.classList.toggle("is-active", open || adminModules.has(activeModuleName));
+    }
+
+    function isAdminUser(user) {
+      return Boolean(user?.email && user.email.trim().toLowerCase() === adminEmail);
+    }
+
+    function setAdminVisibility(user) {
+      currentIsAdmin = isAdminUser(user);
+      if (currentIsAdmin) affiliateUnlocked = true;
+      adminNav.hidden = !currentIsAdmin;
+      if (!currentIsAdmin) {
+        setAdminMenuOpen(false);
+        if (adminModules.has(activeModuleName)) {
+          setModule("member", true);
+        }
+      }
+      refreshAffiliateButton();
+    }
+
+    function refreshAffiliateButton() {
+      const affiliateButton = navButtons.find((button) => button.dataset.module === "affiliate");
+      if (!affiliateButton) return;
+      const locked = false;
+      affiliateButton.classList.toggle("is-locked", locked);
+      affiliateButton.setAttribute("aria-disabled", locked ? "true" : "false");
+      affiliateButton.title = locked ? "请先完成体验版并在完结页激活简单联盟" : "";
+    }
+
+    async function loadExperienceAccess(user) {
+      affiliateUnlocked = true;
+      refreshAffiliateButton();
+    }
+
+    function setModule(moduleName, replace = false) {
+      if (adminModules.has(moduleName) && !currentIsAdmin) {
+        moduleName = "member";
+        replace = true;
+      }
+      const module = modules[moduleName] || modules.member;
+      if (activeModuleName === moduleName && frame.getAttribute("src") === module.url) return;
+
+      activeModuleName = moduleName;
+      contentTitle.textContent = module.title;
+      contentHint.textContent = module.hint;
+      if (module.url) {
+        emptyWorkspace.hidden = true;
+        loadingState.classList.remove("hidden");
+        frame.hidden = false;
+        frame.src = module.url;
+      } else {
+        frame.removeAttribute("src");
+        frame.hidden = true;
+        loadingState.classList.add("hidden");
+        emptyWorkspace.hidden = false;
+      }
+
+      navButtons.forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.module === moduleName);
+      });
+      memberMenuBtn.classList.toggle("is-active", memberModules.has(moduleName));
+      memberMenuActions.forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.memberModule === moduleName);
+      });
+      adminMenuBtn.classList.toggle("is-active", adminModules.has(moduleName));
+      adminMenuActions.forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.adminModule === moduleName);
+      });
+      const nextUrl = `./system.html?module=${encodeURIComponent(moduleName)}`;
+      if (replace) {
+        history.replaceState({ module: moduleName }, "", nextUrl);
+      } else {
+        history.pushState({ module: moduleName }, "", nextUrl);
+      }
+    }
+
+    navButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setMemberMenuOpen(false);
+        setAdminMenuOpen(false);
+        setModule(button.dataset.module);
+      });
+    });
+
+    memberMenuBtn.addEventListener("click", () => {
+      setAdminMenuOpen(false);
+      setMemberMenuOpen(memberMenuPanel.hidden);
+    });
+
+    memberMenuActions.forEach((button) => {
+      button.addEventListener("click", () => {
+        setAdminMenuOpen(false);
+        setModule(button.dataset.memberModule);
+      });
+    });
+
+    adminMenuBtn.addEventListener("click", () => {
+      setMemberMenuOpen(false);
+      setAdminMenuOpen(adminMenuPanel.hidden);
+    });
+
+    adminMenuActions.forEach((button) => {
+      button.addEventListener("click", () => {
+        setMemberMenuOpen(false);
+        setModule(button.dataset.adminModule);
+      });
+    });
+
+    collapseBtn.addEventListener("click", () => {
+      const collapsed = workspaceShell.classList.toggle("is-collapsed");
+      collapseBtn.textContent = collapsed ? "›" : "‹";
+      collapseBtn.setAttribute("aria-label", collapsed ? "展开左边导航" : "缩小左边导航");
+      localStorage.setItem("simplepos-workspace-collapsed", collapsed ? "1" : "0");
+    });
+
+    openStandaloneBtn.addEventListener("click", () => {
+      if (frame.src) window.open(frame.src, "_blank", "noopener");
+    });
+
+    workspaceLogoutBtn.addEventListener("click", async () => {
+      workspaceLogoutBtn.disabled = true;
+      workspaceLogoutBtn.textContent = "正在退出...";
+      userMeta.textContent = "正在退出登录";
+      accountEmail.textContent = "正在退出...";
+      clearUnifiedLogin();
+      // Tell the shared login page to discard any lingering Firebase session before
+      // offering Google account selection again.
+      localStorage.setItem("simplepos-force-account-choice", "1");
+      try {
+        await signOut(auth);
+      } catch {}
+      window.location.replace(`./login.html?forceAccount=1&next=${encodeURIComponent(loginNext)}`);
+    });
+
+    frame.addEventListener("load", () => {
+      loadingState.classList.add("hidden");
+    });
+
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== "simplepos-experience-state") return;
+      affiliateUnlocked = true;
+      refreshAffiliateButton();
+    });
+
+    window.addEventListener("popstate", () => {
+      setModule(getInitialModule(), true);
+    });
+
+    if (localStorage.getItem("simplepos-workspace-collapsed") === "1") {
+      workspaceShell.classList.add("is-collapsed");
+      collapseBtn.textContent = "›";
+    }
+
+    hydrateAccountPanelFromHint();
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        hasConfirmedUser = true;
+        setAdminVisibility(user);
+        try {
+          sessionStorage.removeItem(loginReturnKey);
+        } catch {}
+        if (loginRedirectTimer) {
+          window.clearTimeout(loginRedirectTimer);
+          loginRedirectTimer = null;
+        }
+        rememberUnifiedLogin(user);
+        setAccountPanel("已登录账号", user.email || user.displayName || "已登录", true);
+        loadExperienceAccess(user);
+        if (!initialModuleLoaded) {
+          initialModuleLoaded = true;
+          setModule(getInitialModule(), true);
+        }
+        return;
+      }
+
+      if (hasConfirmedUser || initialModuleLoaded) {
+        setAccountPanel("登录状态同步中", readUnifiedLoginHint()?.email || "登录状态同步中", true);
+        if (!initialModuleLoaded) {
+          initialModuleLoaded = true;
+          setModule(getInitialModule(), true);
+        }
+        return;
+      }
+
+      if (hasRecentLoginHint() || hasFreshLoginReturn()) {
+        setAccountPanel("登录状态同步中", readUnifiedLoginHint()?.email || "登录状态同步中", true);
+        loadingState.classList.remove("hidden");
+        loadingState.textContent = "正在恢复登录状态...";
+        if (!loginRedirectTimer) {
+          loginRedirectTimer = window.setTimeout(() => redirectToLogin(true), 5000);
+        }
+        return;
+      }
+
+      setAdminVisibility(null);
+      affiliateUnlocked = false;
+      refreshAffiliateButton();
+      setAccountPanel("请先登录", "未登录", false);
+      if (!loginRedirectTimer) {
+        loginRedirectTimer = window.setTimeout(() => redirectToLogin(true), 5000);
+      }
+    });
+  </script>
+</body>
+</html>

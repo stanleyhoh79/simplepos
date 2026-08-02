@@ -1,0 +1,189 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.email in [
+          "stanleyhoh79@gmail.com"
+        ];
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function userCreateIsSafe(userId) {
+      return isOwner(userId)
+        && request.resource.data.id == userId
+        && request.resource.data.firebaseUid == userId
+        && request.resource.data.points == 0
+        && request.resource.data.slots == 0
+        && request.resource.data.repeatCredits == 0
+        && request.resource.data.repeatCooldownUntil == ""
+        && request.resource.data.packageUntil == ""
+        && request.resource.data.frozen == false;
+    }
+
+    function userUpdateIsSafe(userId) {
+      return isOwner(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          "id",
+          "firebaseUid",
+          "points",
+          "slots",
+          "repeatCredits",
+          "repeatCreditQueueAt",
+          "repeatCooldownUntil",
+          "packageUntil",
+          "level",
+          "frozen"
+        ]) == false
+        && (
+          request.resource.data.inviteCode == resource.data.inviteCode
+          || !("inviteCode" in resource.data)
+        )
+        && (
+          request.resource.data.referrerId == resource.data.referrerId
+          || !("referrerId" in resource.data)
+          || resource.data.referrerId == ""
+        );
+    }
+
+    function ownerCanCreateOrder() {
+      return signedIn()
+        && request.auth.uid == request.resource.data.userId
+        && request.resource.data.status == "pending"
+        && request.resource.data.points == 0;
+    }
+
+    function ownerCanUpdateOrder() {
+      return signedIn()
+        && request.auth.uid == resource.data.userId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.points == resource.data.points
+        && request.resource.data.planId == resource.data.planId
+        && request.resource.data.type == resource.data.type;
+    }
+
+    function ownerCanCreateWithdraw() {
+      return signedIn()
+        && request.auth.uid == request.resource.data.userId
+        && request.resource.data.status == "pending"
+        && request.resource.data.source == "reward"
+        && request.resource.data.amount >= 50
+        && get(/databases/$(database)/documents/amsystemUsers/$(request.auth.uid)).data.frozen == false;
+    }
+
+    function ownerCanUpdateWithdraw() {
+      return signedIn()
+        && request.auth.uid == resource.data.userId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.source == resource.data.source;
+    }
+
+    function ownerCanCreateInvite(code) {
+      return signedIn()
+        && request.auth.uid == request.resource.data.userId
+        && request.resource.data.id == code
+        && request.resource.data.code == code;
+    }
+
+    function ownerCanUpdateInvite(code) {
+      return ownerCanCreateInvite(code)
+        && request.auth.uid == resource.data.userId;
+    }
+
+    function ownerCanCreateReferral() {
+      return signedIn()
+        && request.auth.uid == request.resource.data.inviteeId
+        && request.resource.data.referrerId != request.resource.data.inviteeId;
+    }
+
+    function ownerCanUpdateReferral() {
+      return signedIn()
+        && request.auth.uid == resource.data.inviteeId
+        && request.resource.data.referrerId == resource.data.referrerId
+        && request.resource.data.inviteeId == resource.data.inviteeId;
+    }
+
+    match /amsystem/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /amsystemUsers/{userId} {
+      allow read: if isAdmin() || isOwner(userId);
+      allow create: if isAdmin() || userCreateIsSafe(userId);
+      allow update: if isAdmin() || userUpdateIsSafe(userId);
+      allow delete: if isAdmin();
+    }
+
+    match /amsystemOrders/{orderId} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == resource.data.userId);
+      allow create: if isAdmin() || ownerCanCreateOrder();
+      allow update: if isAdmin() || ownerCanUpdateOrder();
+      allow delete: if isAdmin();
+    }
+
+    match /amsystemExternalOrders/{externalOrderId} {
+      allow read: if isAdmin()
+        || (signedIn() && request.auth.uid == resource.data.userId);
+      allow write: if isAdmin();
+    }
+
+    match /amsystemReversalCases/{caseId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /amsystemWithdraws/{withdrawId} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == resource.data.userId);
+      allow create: if isAdmin() || ownerCanCreateWithdraw();
+      allow update: if isAdmin() || ownerCanUpdateWithdraw();
+      allow delete: if isAdmin();
+    }
+
+    match /amsystemInviteCodes/{code} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || ownerCanCreateInvite(code);
+      allow update: if isAdmin() || ownerCanUpdateInvite(code);
+      allow delete: if isAdmin();
+    }
+
+    match /amsystemReferrals/{referralId} {
+      allow read: if isAdmin()
+        || (signedIn() && request.auth.uid == resource.data.referrerId)
+        || (signedIn() && request.auth.uid == resource.data.inviteeId);
+      allow create: if isAdmin() || ownerCanCreateReferral();
+      allow update: if isAdmin() || ownerCanUpdateReferral();
+      allow delete: if isAdmin();
+    }
+
+    match /amsystemRewards/{rewardId} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == resource.data.userId);
+      allow write: if isAdmin();
+    }
+
+    match /amsystemPointLogs/{logId} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == resource.data.userId);
+      allow write: if isAdmin();
+    }
+
+    match /amsystemRepeatCreditLogs/{logId} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == resource.data.userId);
+      allow write: if isAdmin();
+    }
+
+    match /amsystemAdminLogs/{logId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

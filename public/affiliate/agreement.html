@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>营销联盟协议确认</title>
+  <link rel="stylesheet" href="./agreement.css?v=20260719-1">
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">极简养生 · HOHS ENTERPRISE</p>
+      <h1>营销联盟协议确认</h1>
+      <p>会员线上阅读、逐项确认并提交电子记录，减少纸质签署步骤。</p>
+      <div class="meta">
+        <span>版本 <strong id="versionLabel">1.0</strong></span>
+        <span>适用地区 <strong>Malaysia</strong></span>
+        <span>生效日期 <strong>19/07/2026</strong></span>
+      </div>
+    </header>
+
+    <section class="notice">
+      <strong>重要说明</strong>
+      本协议用于推荐会员、分享获批准内容并按有效交易获得佣金。联盟会员不是公司雇员、代理、经销商、医疗专业人员或合伙人，也无权代表公司作出承诺。
+    </section>
+
+    <section class="notice warning">
+      <strong>协助确认原则</strong>
+      工作人员可以协助会员阅读、翻译、操作网页或解释流程，但不得代替会员回答、勾选、输入签名或点击确认。最终决定必须由会员本人自由作出。
+    </section>
+
+    <section class="auth-card">
+      <div>
+        <h2>登录状态</h2>
+        <p id="authStatus">正在检测登录状态...</p>
+      </div>
+      <div class="actions">
+        <button id="loginBtn" class="button primary" type="button">Google 登录</button>
+        <button id="logoutBtn" class="button ghost" type="button">退出登录</button>
+      </div>
+    </section>
+
+    <nav class="toc" aria-label="协议目录">
+      <a href="#role">角色</a>
+      <a href="#marketing">推广规则</a>
+      <a href="#commission">佣金</a>
+      <a href="#data">个人资料</a>
+      <a href="#terms">终止</a>
+      <a href="#confirm">电子确认</a>
+    </nav>
+
+    <section id="role" class="clause">
+      <h2>一、当事人及联盟会员角色</h2>
+      <ol>
+        <li>本协议由 HOHS ENTERPRISE（SSM：JM0715700-V）与完成电子确认的联盟会员订立。</li>
+        <li>联盟会员须年满 18 岁，并提供真实、完整及最新的身份、联络、收款和税务资料。</li>
+        <li>联盟会员以独立身份推广公司批准的计划、产品或服务。本协议不构成雇佣、代理、特许经营、合伙、合资或信托关系。</li>
+        <li>除公司另有书面授权，联盟会员不得代公司签约、收款、退款、修改价格、收集健康资料或接触后台资料。</li>
+      </ol>
+    </section>
+
+    <section id="marketing" class="clause">
+      <h2>二、推广与内容规则</h2>
+      <ol>
+        <li>每项推广须清楚披露广告、合作、赠品或佣金关系。</li>
+        <li>只能使用公司批准的名称、商标、产品说明、价格、图片、免责声明和推广素材。</li>
+        <li>不得诊断、治疗或保证减重；不得承诺特定公斤数、厘米数、天数、永久结果或“一定成功”。</li>
+        <li>个人体验必须真实，并取得独立案例授权；应说明结果因人而异。</li>
+        <li>不得发布虚假评价、伪造前后对比、刷单、自我推荐、冒充公司、贬损竞争者或发送垃圾信息。</li>
+        <li>须遵守 TikTok、Instagram、Facebook、小红书、WhatsApp 等平台的广告、隐私和商业内容政策。</li>
+      </ol>
+    </section>
+
+    <section id="commission" class="clause">
+      <h2>三、推荐归因、有效交易与佣金</h2>
+      <ol>
+        <li>推荐交易须通过公司认可的专属链接、推荐码或可验证记录完成。</li>
+        <li>有效交易通常指已付款、通过必要筛查、未取消、未退款、未拒付、无欺诈或违规，并已超过确认期的真实订单。</li>
+        <li>税费、退款、折扣、运费、拒付及不符合资格的金额不计入佣金基数。</li>
+        <li>已预付佣金对应订单后续退款、拒付或被判无效时，公司可在未来佣金中冲回。</li>
+        <li>收入取决于真实有效交易，不保证最低订单、佣金或收益。</li>
+      </ol>
+
+      <div class="schedule">
+        <h3>附件 A：商业条款</h3>
+        <p>以下条款由公司锁定并随提交记录保存。</p>
+        <div class="grid">
+          <label>佣金率 / 计算方式
+            <input name="commission" value="按后台获批配套规则计算，例如 RM180 配套以系统显示为准" required>
+          </label>
+          <label>适用交易
+            <input name="eligible" value="合资格的极简养生计划或公司批准的联盟配套订单" required>
+          </label>
+          <label>归因规则与归因期
+            <input name="attribution" value="以系统记录的有效推荐码 / 推荐链接为准" required>
+          </label>
+          <label>结算与付款日
+            <input name="payout" value="后台审核后按公司当期结算安排处理" required>
+          </label>
+          <label>最低付款额
+            <input name="minimum" value="RM50，不足可结转" required>
+          </label>
+          <label>退款 / 拒付冲回期
+            <input name="reversal" value="订单退款期或后台复核期届满后确认" required>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section id="data" class="clause">
+      <h2>四、个人资料、电子记录与通知</h2>
+      <ol>
+        <li>公司可为申请审核、身份核实、联盟管理、推荐归因、佣金付款、会计、培训、合规监测、投诉与争议处理，处理联盟会员资料。</li>
+        <li>电子确认记录可包括协议版本、勾选内容、输入姓名、确认时间、协助记录、Firebase 用户、电邮及必要的安全日志。</li>
+        <li>资料可能向获授权工作人员、付款或系统供应商、专业顾问及依法有权机关披露，并按服务、会计、争议及法定期限保存。</li>
+        <li>会员可联系公司查询、更正或提出个人资料请求。资料联络：017-6313216 · hohse888@gmail.com。</li>
+      </ol>
+    </section>
+
+    <section id="terms" class="clause">
+      <h2>五、期限、暂停与终止</h2>
+      <ol>
+        <li>协议自公司核准并记录联盟会员电子确认之日起生效，持续至任何一方终止。</li>
+        <li>任何一方可提前 7 天书面通知终止。</li>
+        <li>涉及虚假宣传、未经授权收款、资料滥用、欺诈、严重健康声称、知识产权侵权或违法行为时，公司可立即暂停链接、扣留待核实佣金或终止。</li>
+        <li>终止后须立即停止使用公司品牌和自称联盟会员；保密、知识产权、个人资料、佣金核算、责任及争议条款继续有效。</li>
+        <li>本协议受马来西亚法律管辖。双方应先诚信协商；协商不成，可向马来西亚有管辖权的法院寻求解决。</li>
+      </ol>
+    </section>
+
+    <section id="confirm" class="confirm-card">
+      <h2>六、会员电子确认</h2>
+      <form id="agreementForm">
+        <div class="grid">
+          <label>会员法定姓名 <span>*</span>
+            <input name="memberName" autocomplete="name" required>
+          </label>
+          <label>手机 / WhatsApp（+60）<span>*</span>
+            <input name="mobile" autocomplete="tel" required>
+          </label>
+          <label>电邮 <span>*</span>
+            <input name="email" type="email" autocomplete="email" required>
+          </label>
+          <label>联盟编号 / 推荐码
+            <input name="affiliateId" placeholder="如已分配，请填写">
+          </label>
+          <label>确认所用语言 <span>*</span>
+            <select name="language" required>
+              <option value="">请选择</option>
+              <option>中文</option>
+              <option>Bahasa Malaysia</option>
+              <option>English</option>
+              <option>其他</option>
+            </select>
+          </label>
+          <label>是否有人协助阅读 / 操作？<span>*</span>
+            <select id="assisted" name="assisted" required>
+              <option value="">请选择</option>
+              <option value="no">没有，由本人独立完成</option>
+              <option value="yes">有，已记录协助资料</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="assistFields" class="grid" hidden>
+          <label>协助人姓名 / 编号
+            <input name="helperName">
+          </label>
+          <label>协助方式
+            <select name="helpMethod">
+              <option value="">请选择</option>
+              <option>现场阅读 / 操作</option>
+              <option>电话</option>
+              <option>视频通话</option>
+              <option>WhatsApp</option>
+              <option>语言 / 无障碍协助</option>
+            </select>
+          </label>
+          <label class="full">协助说明
+            <input name="helpNotes" placeholder="例如：逐条朗读中文；所有答案和勾选均由会员本人决定">
+          </label>
+        </div>
+
+        <div class="checks">
+          <label><input name="c1" type="checkbox" required> 我已年满 18 岁，资料真实，并理解申请须经公司核准。</label>
+          <label><input name="c2" type="checkbox" required> 我已阅读并理解完整协议及附件 A，知道佣金并非保证收入。</label>
+          <label><input name="c3" type="checkbox" required> 我会清楚披露广告、合作、赠品或佣金关系，不误导消费者。</label>
+          <label><input name="c4" type="checkbox" required> 我不会作医疗诊断、保证减重、承诺特定公斤数 / 天数或发布未经批准的健康声称。</label>
+          <label><input name="c5" type="checkbox" required> 我同意公司为联盟计划和电子留痕处理必要个人资料。</label>
+          <label><input name="c6" type="checkbox" required> 如有人协助，所有资料、答案、勾选和参加决定均由我本人作出。</label>
+        </div>
+
+        <div class="grid">
+          <label>输入本人完整姓名作为电子签名 <span>*</span>
+            <input name="typedSignature" required>
+          </label>
+          <label>确认日期与时间
+            <input id="confirmedAtText" name="confirmedAtText" readonly>
+          </label>
+        </div>
+
+        <p id="formMessage" class="message" role="status"></p>
+        <div class="actions">
+          <button class="button primary" type="submit">本人确认参与联盟计划</button>
+          <button id="printBtn" class="button ghost" type="button">打印 / 另存 PDF</button>
+          <button class="button ghost" type="reset">清除</button>
+        </div>
+      </form>
+
+      <div id="receipt" class="receipt" hidden>
+        <h3>确认摘要</h3>
+        <div id="receiptGrid" class="receipt-grid"></div>
+        <div class="actions">
+          <button id="downloadBtn" class="button ghost" type="button">下载确认记录 JSON</button>
+          <a class="button ghost" href="./index.html">返回简单联盟</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./agreement.js?v=20260720-1"></script>
+</body>
+</html>

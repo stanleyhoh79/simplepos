@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>会员中心</title>
+  <script>
+    if (new URLSearchParams(window.location.search).get("embed") === "1") {
+      document.documentElement.classList.add("is-embedded");
+    }
+  </script>
+  <link rel="stylesheet" href="./styles.css?v=20260725-2">
+</head>
+<body>
+  <main class="page-shell">
+    <section class="account-menu" aria-label="会员账号菜单">
+      <button class="account-head" id="accountHead" type="button">
+        <span class="avatar" id="memberAvatar">会</span>
+        <span>
+          <strong id="accountName">会员中心</strong>
+          <small id="accountSub">正在检查登录状态...</small>
+        </span>
+        <span class="chevron">›</span>
+      </button>
+
+      <div class="menu-separator"></div>
+
+      <a class="menu-row" href="../customer/index.html">
+        <span class="menu-icon">健</span>
+        <span>
+          <strong>个人资料</strong>
+          <small>填写、查看与更新会员主档</small>
+        </span>
+      </a>
+      <a class="menu-row" href="../affiliate/agreement.html">
+        <span class="menu-icon">盟</span>
+        <span>
+          <strong>简单营销联盟协议</strong>
+          <small>申请推广大使时同步确认</small>
+        </span>
+      </a>
+      <a class="menu-row" href="../affiliate/terms.html">
+        <span class="menu-icon">条</span>
+        <span>
+          <strong>网站条款与条件</strong>
+          <small>公示与会员确认记录</small>
+        </span>
+      </a>
+      <button class="menu-row logout-row" id="memberLogoutBtn" type="button">
+        <span class="menu-icon">出</span>
+        <span>
+          <strong>退出登录</strong>
+          <small>退出当前 Google 账号</small>
+        </span>
+      </button>
+    </section>
+
+    <section class="hero">
+      <p class="eyebrow">SIMPLE SYSTEM · MEMBER PROFILE</p>
+      <h1>会员中心</h1>
+      <p>个人资料、SimplePay、简单联盟等系统会直接读取这里的会员主档，避免重复填写。</p>
+      <p id="authStatus" class="status-box">正在检查统一登录状态...</p>
+    </section>
+
+    <section id="emptyState" class="panel empty-panel" hidden>
+      <h2>还没有个人资料主档</h2>
+      <p>请先完成个人资料。完成后，系统会自动建立会员资料，并回到这里查阅与更新。</p>
+      <a class="button primary" href="../customer/index.html">去完善个人资料</a>
+    </section>
+
+    <section id="profileView" class="layout" hidden>
+      <aside class="panel summary-panel">
+        <p class="eyebrow">当前会员</p>
+        <h2 id="memberName">-</h2>
+        <p id="memberEmail">-</p>
+        <div class="summary-list">
+          <span>电话<strong id="memberPhone">-</strong></span>
+          <span>分行<strong id="memberBranch">-</strong></span>
+          <span>计划<strong id="memberPackage">-</strong></span>
+          <span>条款<strong id="memberTerms">-</strong></span>
+          <span>最近更新<strong id="memberUpdatedAt">-</strong></span>
+          <span>更新账号<strong id="memberUpdatedBy">-</strong></span>
+        </div>
+      </aside>
+
+      <form id="profileForm" class="panel form-grid">
+        <h2>查阅与更新资料</h2>
+        <label>
+          姓名
+          <input name="name" required autocomplete="name">
+        </label>
+        <label>
+          Google 电邮
+          <input name="email" type="email" readonly>
+        </label>
+        <label>
+          电话 / WhatsApp
+          <input name="phone" required inputmode="tel" autocomplete="tel">
+        </label>
+        <label>
+          身份证末四位（选填）
+          <input name="idLast4" maxlength="4" inputmode="numeric">
+        </label>
+        <label>
+          州属
+          <input name="state">
+        </label>
+        <label>
+          城市
+          <input name="city">
+        </label>
+        <label class="wide">
+          详细地址
+          <textarea name="address" rows="3" autocomplete="street-address" placeholder="例如：门牌、街道、花园住宅区"></textarea>
+        </label>
+        <label>
+          推荐码 / 介绍人
+          <input name="referralCode" autocomplete="off">
+        </label>
+        <label>
+          当前计划
+          <input name="packageName">
+        </label>
+        <label>
+          开始日期
+          <input name="startDate" type="date">
+        </label>
+        <label>
+          目标完成日期
+          <input name="targetDate" type="date">
+        </label>
+        <label>
+          当前体重（kg）
+          <input name="weight" type="number" min="0" step="0.1" inputmode="decimal" readonly>
+        </label>
+        <label>
+          腰围（cm）
+          <input name="waist" type="number" min="0" step="0.1" inputmode="decimal" readonly>
+        </label>
+        <label>
+          身高（cm）
+          <input name="height" type="number" min="0" step="0.1" inputmode="decimal" readonly>
+        </label>
+        <label>
+          体脂肪（%）
+          <input name="bodyFatPct" type="number" min="0" max="100" step="0.1" inputmode="decimal" readonly>
+          <small>一般参考：男 10–20%，女 18–28%</small>
+        </label>
+        <label>
+          内脏脂肪等级
+          <input name="visceralFatLevel" type="number" min="0" step="1" inputmode="numeric" readonly>
+          <small>常见设备一般以 1–9 为参考</small>
+        </label>
+        <label>
+          骨量（kg）
+          <input name="boneMassKg" type="number" min="0" step="0.1" inputmode="decimal" readonly>
+          <small>以设备的性别与年龄参考为准</small>
+        </label>
+        <label>
+          基础代谢率（kcal/日）
+          <input name="basalMetabolicRateKcal" type="number" min="0" step="1" inputmode="numeric" readonly>
+          <small>会随年龄、性别、身高和体重变化</small>
+        </label>
+        <label>
+          骨骼肌率（%）
+          <input name="skeletalMusclePct" type="number" min="0" max="100" step="0.1" inputmode="decimal" readonly>
+          <small>一般参考：男 33–39%，女 24–30%</small>
+        </label>
+        <label>
+          体水分（%）
+          <input name="bodyWaterPct" type="number" min="0" max="100" step="0.1" inputmode="decimal" readonly>
+          <small>一般参考：男 50–65%，女 45–60%</small>
+        </label>
+        <p class="metric-note wide">这里显示的是初始基线数据，不能自行改写。线下每周测量会由工作人员新增记录，并自动和基线、上一次测量比较。所有范围仅供健康管理参考，不作医疗诊断。</p>
+        <label>
+          每日打卡完成天数（系统自动统计）
+          <input name="checkInDays" type="number" min="0" max="18" step="1" inputmode="numeric" readonly>
+        </label>
+        <label class="wide">
+          个人目标
+          <textarea name="goal" rows="3"></textarea>
+        </label>
+        <label class="wide">
+          健康说明 / 需要工作人员注意
+          <textarea name="healthNote" rows="4"></textarea>
+        </label>
+        <label class="wide">
+          进度记录 / 需要协助
+          <textarea name="progressNote" rows="4"></textarea>
+        </label>
+        <div class="system-links wide">
+          <a class="button" href="../simplepay/index.html">进入 SimplePay</a>
+          <a class="button" href="../affiliate/index.html">进入简单联盟</a>
+          <a class="button" href="../customer/index.html">健康计划状态</a>
+        </div>
+        <button id="saveBtn" class="primary wide" type="submit">保存会员资料</button>
+        <p id="formStatus" class="status-box wide">资料只会更新到你的会员主档，各系统会自动关联。</p>
+      </form>
+    </section>
+
+    <section id="measurementHistory" class="panel measurement-history" hidden>
+      <div>
+        <p class="eyebrow">身体数据记录</p>
+        <h2>身体测量列表</h2>
+        <p>首笔基线测量已保存；未来每周测量会在这里追加，不会覆盖旧记录。</p>
+      </div>
+      <div id="measurementRecords" class="measurement-records"></div>
+    </section>
+  </main>
+
+  <script type="module" src="./script.js?v=20260725-3"></script>
+</body>
+</html>

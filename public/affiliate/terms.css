@@ -1,0 +1,334 @@
+:root {
+  --brand: #0f766e;
+  --ink: #071d1a;
+  --muted: #66756f;
+  --line: #d8e3df;
+  --soft: #eef7f4;
+  --paper: #ffffff;
+  --warn: #fff7e7;
+  --danger: #a63b3b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: #f5faf8;
+  color: var(--ink);
+  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+.page {
+  width: min(980px, 100% - 24px);
+  margin: 24px auto;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.hero {
+  padding: 34px 36px 26px;
+  background: linear-gradient(135deg, #ffffff, var(--soft));
+  border-bottom: 1px solid var(--line);
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--brand);
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: clamp(30px, 5vw, 44px);
+  line-height: 1.1;
+}
+
+h2 {
+  margin: 0 0 12px;
+  color: var(--brand);
+  font-size: 23px;
+}
+
+p {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.meta,
+.actions,
+.toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.meta span,
+.toc a {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.notice,
+.supplier,
+.clause,
+.confirm-card,
+.auth-card,
+.accepted-card {
+  margin: 18px 24px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.notice {
+  border-left: 5px solid var(--brand);
+  background: var(--soft);
+}
+
+.notice.warning {
+  border-left-color: #c28a2c;
+  background: var(--warn);
+}
+
+.notice strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.info-grid span,
+.info-grid strong {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.info-grid span {
+  background: var(--soft);
+  color: var(--brand);
+  font-weight: 800;
+}
+
+.info-grid.compact {
+  margin: 12px 0;
+}
+
+.accepted-card {
+  border-left: 5px solid var(--brand);
+  background: #fbfefd;
+}
+
+.accepted-card > strong {
+  display: block;
+  color: var(--brand);
+  font-size: 18px;
+}
+
+.toc {
+  margin: 18px 24px;
+}
+
+.clause h2,
+.confirm-card h2 {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+ol {
+  margin: 0;
+  padding-left: 22px;
+}
+
+li {
+  margin: 8px 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--soft);
+  color: var(--brand);
+}
+
+.auth-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 14px 0;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-weight: 800;
+}
+
+label span,
+.message.error {
+  color: var(--danger);
+}
+
+input {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #b9cbc6;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+input:focus {
+  outline: 3px solid rgba(15, 118, 110, .18);
+  border-color: var(--brand);
+}
+
+.checks {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.checks label {
+  grid-template-columns: 24px 1fr;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.checks input {
+  min-height: 0;
+  height: 20px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: 800 15px/1 system-ui, sans-serif;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button.primary {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+
+.button.ghost {
+  background: #f9fcfb;
+}
+
+.button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.message {
+  min-height: 24px;
+  font-weight: 800;
+}
+
+@media (max-width: 720px) {
+  .page {
+    width: 100%;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  .hero,
+  .notice,
+  .supplier,
+  .clause,
+  .confirm-card,
+  .accepted-card,
+  .toc {
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+
+  .hero {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .auth-card,
+  .grid,
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+    font-size: 11pt;
+  }
+
+  .page {
+    width: 100%;
+    margin: 0;
+    border: 0;
+  }
+
+  .actions,
+  .toc,
+  .auth-card {
+    display: none !important;
+  }
+}

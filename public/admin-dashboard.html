@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>全局数据看板</title>
+  <style>
+    :root { color-scheme: light; font-family: Arial, "Noto Sans SC", "Microsoft YaHei", sans-serif; color: #09221e; background: #f3f8f6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f8f6; }
+    .page { max-width: 1440px; margin: 0 auto; padding: 28px; }
+    .intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
+    .eyebrow { margin: 0 0 8px; color: #078170; font-size: 13px; font-weight: 800; letter-spacing: .08em; }
+    h1 { margin: 0; font-size: clamp(30px, 4vw, 46px); letter-spacing: 0; }
+    .intro p { margin: 10px 0 0; max-width: 720px; color: #60736e; font-size: 16px; line-height: 1.6; }
+    button { font: inherit; cursor: pointer; }
+    .refresh { border: 1px solid #cfe0da; border-radius: 12px; background: #fff; color: #087b6b; font-weight: 800; padding: 12px 16px; white-space: nowrap; }
+    .refresh:hover { background: #edf8f4; }
+    .notice { min-height: 20px; margin: 0 0 18px; color: #657873; font-size: 14px; }
+    .notice.error { color: #b42318; }
+    .grid { display: grid; gap: 14px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .stat, .section { border: 1px solid #d5e5df; border-radius: 14px; background: #fff; }
+    .stat { padding: 18px; min-height: 142px; display: flex; flex-direction: column; }
+    .stat .label { color: #60736e; font-weight: 700; }
+    .stat strong { margin-top: 14px; font-size: clamp(28px, 3vw, 40px); line-height: 1; }
+    .stat small { margin-top: auto; color: #667b75; font-size: 13px; }
+    .section { margin-top: 18px; padding: 20px; }
+    .section-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    h2 { margin: 0; font-size: 20px; }
+    .detail { border: 0; background: transparent; color: #078170; font-weight: 800; padding: 6px 0; }
+    .rows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+    .row { border-radius: 10px; background: #edf6f2; padding: 14px; }
+    .row span { display: block; color: #61756f; font-size: 13px; font-weight: 700; }
+    .row strong { display: block; margin-top: 8px; font-size: 24px; }
+    .sources { margin-top: 18px; color: #687a75; font-size: 13px; line-height: 1.6; }
+    .locked { max-width: 720px; margin: 48px auto; padding: 30px; border: 1px solid #e4c8c4; border-radius: 14px; background: #fff8f7; color: #8d271f; }
+    @media (max-width: 960px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rows { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { .page { padding: 18px; } .intro { display: block; } .refresh { margin-top: 16px; width: 100%; } .grid, .rows { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page" id="dashboard">
+    <div class="intro">
+      <div>
+        <p class="eyebrow">ADMIN · UNIFIED OVERVIEW</p>
+        <h1>全局数据看板</h1>
+        <p>把各系统的关键数字集中在这里。数据实时读取云端；明细仍在各自后台处理。</p>
+      </div>
+      <button class="refresh" id="refreshBtn" type="button">刷新数据</button>
+    </div>
+    <p class="notice" id="notice">正在读取云端数据…</p>
+
+    <section class="grid" aria-label="关键数据">
+      <article class="stat"><span class="label">会员主档</span><strong id="memberCount">–</strong><small id="profileHint">已建立个人资料</small></article>
+      <article class="stat"><span class="label">今日完成打卡</span><strong id="checkinToday">–</strong><small id="checkinHint">以会员当日记录统计</small></article>
+      <article class="stat"><span class="label">每周测量记录</span><strong id="measurementCount">–</strong><small id="measurementHint">含基线与后续测量</small></article>
+      <article class="stat"><span class="label">POS 销售额</span><strong id="salesAmount">–</strong><small id="salesHint">已完成订单累计</small></article>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>SimplePay</h2><button class="detail" data-module="simplepayAdmin">查看支付后台</button></div>
+      <div class="rows">
+        <div class="row"><span>钱包积分余额</span><strong id="walletBalance">–</strong></div>
+        <div class="row"><span>已审核商家</span><strong id="merchantApproved">–</strong></div>
+        <div class="row"><span>待处理退款</span><strong id="refundPending">–</strong></div>
+        <div class="row"><span>待处理结算</span><strong id="settlementPending">–</strong></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>简单联盟</h2><button class="detail" data-module="affiliateAdmin">查看联盟后台</button></div>
+      <div class="rows">
+        <div class="row"><span>联盟账号</span><strong id="affiliateUsers">–</strong></div>
+        <div class="row"><span>已支付订单</span><strong id="affiliatePaidOrders">–</strong></div>
+        <div class="row"><span>待处理提现</span><strong id="affiliateWithdraws">–</strong></div>
+        <div class="row"><span>待处理奖励</span><strong id="affiliateRewards">–</strong></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>简单 POS</h2><button class="detail" data-module="posAdmin">查看 POS 后台</button></div>
+      <div class="rows">
+        <div class="row"><span>有效分行</span><strong id="branchCount">–</strong></div>
+        <div class="row"><span>授权 POS 用户</span><strong id="posUserCount">–</strong></div>
+        <div class="row"><span>已完成销售订单</span><strong id="saleCount">–</strong></div>
+      </div>
+      <div class="sources" id="sources">数据来源：会员资料、每日打卡、每周测量、SimplePay、简单联盟与 POS。</div>
+    </section>
+  </main>
+
+  <script type="module" src="./admin-dashboard.js"></script>
+</body>
+</html>

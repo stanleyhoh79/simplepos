@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>体验版首页设置 | 极简养生系统</title>
+  <script>
+    if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("is-embedded");
+  </script>
+  <style>
+    :root { font-family: Arial, "Noto Sans SC", "Microsoft YaHei", sans-serif; color: #071f1b; background: #f4faf7; }
+    * { box-sizing: border-box; } body { margin: 0; }
+    main { width: min(1080px, calc(100% - 32px)); margin: 0 auto; padding: 42px 0 72px; }
+    .eyebrow { margin: 0 0 10px; color: #0f8178; font-weight: 900; letter-spacing: .06em; }
+    h1 { margin: 0; font-size: clamp(34px, 5vw, 56px); } .intro { color: #65756f; font-size: 18px; line-height: 1.6; }
+    form { display: grid; gap: 20px; margin-top: 28px; }
+    .panel { padding: 24px; border: 1px solid #d8e2de; border-radius: 8px; background: #fff; }
+    .panel h2 { margin: 0 0 16px; font-size: 23px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    label { display: grid; gap: 8px; font-weight: 800; } input, textarea { width: 100%; border: 1px solid #cfdcd7; border-radius: 6px; padding: 12px; color: inherit; font: inherit; font-weight: 500; } textarea { min-height: 118px; resize: vertical; line-height: 1.55; }
+    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; } .step { padding: 16px; border: 1px solid #d8e2de; border-radius: 7px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; } button { min-height: 48px; border: 1px solid #d2ded9; border-radius: 7px; padding: 0 18px; background: #fff; color: inherit; font: inherit; font-weight: 900; cursor: pointer; } button.primary { border-color: #0f8178; background: #0f8178; color: #fff; } .status { color: #65756f; font-weight: 700; }
+    .locked { padding: 24px; border: 1px solid #ecd0cc; border-radius: 8px; background: #fff7f6; color: #9f3228; font-weight: 800; }
+    @media (max-width: 720px) { main { width: min(100% - 24px, 1080px); padding-top: 28px; } .grid, .steps { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">ADMIN · EXPERIENCE</p>
+    <h1>体验版首页设置</h1>
+    <p class="intro">只影响新会员进入系统时看到的体验版说明，不会改动已保存的体验、退款或联盟状态。</p>
+    <div class="locked" id="lockedMessage" hidden>只有唯一管理员可以修改体验版首页设置。</div>
+    <form id="settingsForm" hidden>
+      <section class="panel"><h2>首页文案</h2><div class="grid">
+        <label>顶部小标签<input id="eyebrow" maxlength="50"></label>
+        <label>首页大标题<input id="title" maxlength="60"></label>
+      </div><label>首页说明<textarea id="intro" maxlength="800"></textarea></label></section>
+      <section class="panel"><h2>体验说明</h2>
+        <label>说明标题<input id="noticeTitle" maxlength="60"></label>
+        <label>说明内容<textarea id="noticeText" maxlength="1200"></textarea></label>
+      </section>
+      <section class="panel"><h2>三步引导</h2><div class="steps">
+        <div class="step"><label>第一步标题<input id="step1Title" maxlength="30"></label><label>第一步说明<textarea id="step1Text" maxlength="500"></textarea></label></div>
+        <div class="step"><label>第二步标题<input id="step2Title" maxlength="30"></label><label>第二步说明<textarea id="step2Text" maxlength="500"></textarea></label></div>
+        <div class="step"><label>第三步标题<input id="step3Title" maxlength="30"></label><label>第三步说明<textarea id="step3Text" maxlength="500"></textarea></label></div>
+      </div></section>
+      <section class="panel"><h2>体验完结提示</h2><label>选择说明<textarea id="completionNote" maxlength="1200"></textarea></label></section>
+      <div class="actions"><button class="primary" type="submit">保存体验版设置</button><button id="resetButton" type="button">恢复默认</button><span class="status" id="statusMessage"></span></div>
+    </form>
+  </main>
+  <script type="module">
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    let configModule;
+    try { configModule = await import("./shared/firebase-config.local.js"); } catch { configModule = await import("./shared/firebase-config.js"); }
+    const app = getApps().length ? getApp() : initializeApp(configModule.firebaseConfig);
+    const auth = getAuth(app); const db = getFirestore(app);
+    const ref = doc(db, "portalSettings", "experience");
+    const ids = ["eyebrow", "title", "intro", "noticeTitle", "noticeText", "step1Title", "step1Text", "step2Title", "step2Text", "step3Title", "step3Text", "completionNote"];
+    const defaults = { eyebrow: "极简养生 · 新会员体验", title: "极简养生计划体验版", intro: "先用最简单的方式认识计划。体验内容与操作步骤会在这里逐步开放，无需额外重复填写资料。", noticeTitle: "体验版如何使用", noticeText: "体验由会员自行开始。你可以先试用每日打卡、每周测量和个人资料功能，再决定是否正式加入。", step1Title: "认识计划", step1Text: "了解体验版的节奏与适用方式。", step2Title: "自行开始", step2Text: "准备好后由会员自行启动，不会自动开始正式计划。", step3Title: "记录变化", step3Text: "使用每日打卡与每周测量，观察身体与习惯的变化。", completionNote: "体验结束后，你可以正式加入并激活简单联盟，或提交退款申请。未选择前，简单联盟会保持不可用。" };
+    const form = document.querySelector("#settingsForm"); const message = document.querySelector("#statusMessage");
+    function write(settings) { ids.forEach((id) => { document.querySelector(`#${id}`).value = settings[id] || defaults[id]; }); }
+    function read() { return Object.fromEntries(ids.map((id) => [id, document.querySelector(`#${id}`).value.trim() || defaults[id]])); }
+    onAuthStateChanged(auth, async (user) => {
+      const allowed = user?.email?.trim().toLowerCase() === String(configModule.adminEmail || "").trim().toLowerCase();
+      document.querySelector("#lockedMessage").hidden = allowed; form.hidden = !allowed;
+      if (!allowed) return;
+      try { const snapshot = await getDoc(ref); write({ ...defaults, ...(snapshot.exists() ? snapshot.data() : {}) }); message.textContent = "已读取当前设置。"; }
+      catch (error) { write(defaults); message.textContent = `读取失败：${error.code || error.message}`; }
+    });
+    form.addEventListener("submit", async (event) => { event.preventDefault(); message.textContent = "正在保存..."; try { await setDoc(ref, { ...read(), updatedAt: serverTimestamp() }, { merge: true }); message.textContent = "已保存并同步到体验版首页。"; } catch (error) { message.textContent = `保存失败：${error.code || error.message}`; } });
+    document.querySelector("#resetButton").addEventListener("click", () => { write(defaults); message.textContent = "已恢复默认内容，点击保存后生效。"; });
+  </script>
+</body>
+</html>

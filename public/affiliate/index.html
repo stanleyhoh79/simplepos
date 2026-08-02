@@ -1,0 +1,520 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>简单的联盟营销系统</title>
+    <link rel="stylesheet" href="./styles.css?v=20260628-69" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Firebase 联盟系统</p>
+        <h1>简单的联盟营销系统</h1>
+        <p class="subtitle">Firebase Google 登录、云端数据、用户端和后台端双界面。</p>
+      </div>
+      <div class="header-actions">
+        <button class="switch active" data-view="memberView">用户界面</button>
+        <button class="switch hidden" data-view="adminView" data-admin-entry>后台界面</button>
+        <button id="exportBtn" class="button ghost admin-tool hidden">导出备份包</button>
+        <button id="restoreBackupBtn" class="button ghost admin-tool hidden">导入备份包</button>
+        <input id="restoreBackupInput" type="file" accept="application/json,.json" hidden />
+        <button id="clearTestDataBtn" class="button ghost admin-tool hidden">清理测试数据</button>
+        <button id="resetBtn" class="button danger admin-tool hidden">清空演示数据</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="memberView" class="view active">
+        <section class="member-hero">
+          <div class="panel login-panel">
+            <h2>用户登录</h2>
+            <div class="google-login">
+              <button id="firebaseLoginBtn" class="button primary" type="button">使用 Google 登录</button>
+              <button id="firebaseLogoutBtn" class="button ghost" type="button">退出登录</button>
+              <a class="button ghost" href="./terms.html">网站条款与条件</a>
+              <a class="button ghost" href="./agreement.html">营销联盟协议确认</a>
+              <button id="testFirestoreBtn" class="button ghost" type="button">测试云端保存</button>
+              <p id="authStatus" class="help-text">正在连接 Firebase...</p>
+              <p id="syncStatus" class="help-text">Firestore：等待检测</p>
+            </div>
+            <div id="referralStatus" class="help-text" aria-live="polite"></div>
+          </div>
+
+          <div class="panel account-card">
+            <p class="eyebrow">当前用户</p>
+            <h2 id="memberName">-</h2>
+            <button id="exportMyRecordsBtn" class="button ghost compact-button" type="button">导出我的记录</button>
+            <div class="mini-grid">
+              <span>积分余额<strong id="memberPoints">0</strong></span>
+              <span>可提现奖励<strong id="memberConfirmed">RM0</strong></span>
+              <span>直接推荐<strong id="memberSlots">0 / 开放</strong></span>
+              <span>奖励池资格<strong id="memberRepeatCredits">0</strong></span>
+              <span>配套状态<strong id="memberPlanStatus">未开通</strong></span>
+            </div>
+          </div>
+
+          <div class="panel profile-card">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">用户资料</p>
+                <h2>联系与收款资料</h2>
+              </div>
+            </div>
+            <form id="profileForm" class="stack">
+              <label>显示名称<input name="name" placeholder="用于后台和推荐记录显示" required /></label>
+              <label>手机号码<input name="phone" placeholder="例如：0123456789" /></label>
+              <label>默认收款方式<input name="withdrawMethod" placeholder="银行 / Touch n Go / USDT" /></label>
+              <label>默认收款账号<input name="withdrawAccount" placeholder="银行账号 / 钱包号码 / USDT 地址" /></label>
+              <button class="button primary" type="submit">保存资料</button>
+            </form>
+          </div>
+        </section>
+
+        <nav class="tabs" aria-label="用户模块">
+          <button class="tab active" data-tab="memberPlans">申请充值配套</button>
+          <button class="tab" data-tab="memberReferral">推荐朋友</button>
+          <button class="tab" data-tab="memberRewards">奖励说明与计算</button>
+          <button class="tab" data-tab="memberWithdraw">奖励提现</button>
+        </nav>
+
+        <section id="memberPlans" class="tab-panel active">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>付款资料</h2>
+                <p>申请充值配套前，请填写付款方式和参考号，方便后台核对。</p>
+              </div>
+            </div>
+            <form id="paymentInfoForm" class="grid-form compact">
+              <label>付款方式
+                <select name="paymentMethod">
+                  <option value="bank">银行转账</option>
+                  <option value="tng">Touch n Go</option>
+                  <option value="usdt">USDT</option>
+                  <option value="cash">现金</option>
+                </select>
+              </label>
+              <label>付款参考号<input name="paymentRef" placeholder="交易编号 / 收据编号" /></label>
+              <label>备注<input name="paymentNote" placeholder="例如付款人姓名、银行名称" /></label>
+              <label>付款证明<input name="paymentProof" type="file" accept="image/*,.pdf" /></label>
+            </form>
+          </div>
+          <div class="plan-grid" id="memberPlanCards"></div>
+          <div class="panel">
+            <div class="panel-head"><h2>我的充值订单</h2></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>订单号</th><th>配套</th><th>类型</th><th>金额</th><th>积分</th><th>状态</th><th>时间</th><th>操作</th></tr></thead>
+                <tbody id="memberOrderTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="memberReferral" class="tab-panel">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>我的推荐链接</h2>
+                <p>推荐关系固定，朋友注册后不可随意更换推荐人。</p>
+              </div>
+              <div class="actions">
+                <button id="copyInviteTextBtn" class="button ghost" type="button">复制邀请文案</button>
+                <button id="copyInviteBtn" class="button primary" type="button">复制推荐链接</button>
+              </div>
+            </div>
+            <div class="referral-box" id="inviteLink">-</div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>我的直接推荐</h2></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>用户</th><th>账号</th><th>配套状态</th><th>累计充值</th><th>是否占用名额</th></tr></thead>
+                <tbody id="memberReferralTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="memberRewards" class="tab-panel">
+          <div class="panel">
+            <h2>奖励规则</h2>
+            <div class="rule-grid" id="rewardRules"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>我的奖励记录</h2></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>来源用户</th><th>订单</th><th>类型</th><th>比例</th><th>奖励金额</th><th>状态</th><th>可确认日</th><th>操作</th></tr></thead>
+                <tbody id="memberRewardTable"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>我的奖励池资格流水</h2></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>时间</th><th>变动</th><th>余额</th><th>原因</th><th>来源 / 备注</th></tr></thead>
+                <tbody id="memberRepeatCreditLogTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="memberWithdraw" class="tab-panel">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>申请提现</h2>
+                <p>只有已确认奖励可以申请提现，提现需要后台审核。</p>
+              </div>
+            </div>
+            <p id="withdrawEligibilityText" class="help-text">提现条件：有效配套、账户正常、资料完整、可提现余额满 RM50。测试期提现冷却为 0 小时。</p>
+            <form id="withdrawForm" class="grid-form compact">
+              <label>提现金额 RM<input name="amount" type="number" min="1" step="1" required /></label>
+              <label>收款方式<input name="method" placeholder="银行 / Touch n Go / USDT" required /></label>
+              <label>收款账号<input name="account" placeholder="收款账号" required /></label>
+              <button class="button primary" type="submit">提交提现</button>
+            </form>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>提现记录</h2></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>编号</th><th>金额</th><th>来源</th><th>方式</th><th>账号</th><th>状态</th><th>申请时间</th><th>打款时间</th><th>操作</th></tr></thead>
+                <tbody id="memberWithdrawTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section id="adminView" class="view">
+        <section class="metrics" aria-label="后台指标">
+          <article><button class="metric-button" type="button" data-open-admin-tab="adminUsers" data-todo-focus="allUsers"><span>总用户</span><strong id="metricUsers">0</strong></button></article>
+          <article><button class="metric-button" type="button" data-open-admin-tab="adminOrders" data-todo-focus="paidOrders"><span>总充值</span><strong id="metricSales">RM0</strong></button></article>
+          <article><button class="metric-button" type="button" data-open-admin-tab="adminOrders" data-todo-focus="pendingOrders"><span>待审订单</span><strong id="metricPendingOrders">0</strong></button></article>
+          <article><button class="metric-button" type="button" data-open-admin-tab="adminRewards" data-todo-focus="pendingRewards"><span>待审核奖励</span><strong id="metricPendingRewards">RM0</strong></button></article>
+          <article><button class="metric-button" type="button" data-open-admin-tab="adminWithdraws" data-todo-focus="pendingWithdraws"><span>待处理提现</span><strong id="metricWithdraws">RM0</strong></button></article>
+          <article><button class="metric-button" type="button" data-open-admin-tab="adminRisk" data-todo-focus="readiness"><span>上线状态</span><strong id="metricReadiness">待检测</strong></button></article>
+        </section>
+
+        <section class="layout">
+          <aside class="panel sidebar">
+            <div class="panel-head compact-head">
+              <h2>配套管理</h2>
+              <div class="inline-actions">
+                <button id="syncSimplePayPointsBtn" class="button ghost compact-button" type="button">同步 SimplePay 积分</button>
+                <button id="exportPlansBtn" class="button ghost compact-button" type="button">导出配套</button>
+              </div>
+            </div>
+            <details class="admin-fold" id="planEditorFold">
+              <summary>新增或编辑配套</summary>
+              <form id="planForm" class="stack">
+                <label>配套名称<input name="name" required /></label>
+                <label>充值金额 RM<input name="amount" type="number" min="180" step="180" placeholder="180 / 360 / 720" required /></label>
+                <label>发放积分<input name="points" type="number" min="0" step="1" readonly required /></label>
+                <label>推荐名额（开放后仅记录）<input name="slots" type="number" min="0" step="1" required /></label>
+                <label>奖励池资格上限<input name="repeatCredits" type="number" min="0" step="1" value="10" required /></label>
+                <label>有效期天数<input name="validDays" type="number" min="1" step="1" required /></label>
+                <label>推荐奖励 %<input name="firstRate" type="number" min="0" max="100" step="0.1" required /></label>
+                <label>下线复购奖励 %<input name="directRepeatRate" type="number" min="0" max="100" step="0.1" value="10" required /></label>
+                <label>奖励池奖励 %<input name="repeatRate" type="number" min="0" max="100" step="0.1" required /></label>
+                <button class="button primary" type="submit">新增配套</button>
+              </form>
+            </details>
+            <div id="adminPlanList" class="list"></div>
+          </aside>
+
+          <section class="content">
+            <nav class="tabs" aria-label="后台模块">
+              <button class="tab active" data-tab="adminTodos">待办中心</button>
+              <button class="tab" data-tab="adminUsers">用户管理</button>
+              <button class="tab" data-tab="adminOrders">订单管理</button>
+              <button class="tab" data-tab="adminRewards">奖励审核</button>
+              <button class="tab" data-tab="adminWithdraws">提现审核</button>
+              <button class="tab" data-tab="adminLogs">操作日志</button>
+              <button class="tab" data-tab="adminRisk">风控规则</button>
+            </nav>
+
+            <section id="adminTodos" class="tab-panel active">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>待办中心</h2>
+                  <div class="actions">
+                    <button id="exportFinanceSummaryBtn" class="button ghost" type="button">导出财务汇总</button>
+                    <button id="exportTodosBtn" class="button ghost" type="button">导出待办清单</button>
+                  </div>
+                </div>
+                <div id="adminTodoList" class="todo-grid"></div>
+              </div>
+            </section>
+
+            <section id="adminUsers" class="tab-panel">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>用户管理</h2>
+                  <div class="actions">
+                    <button id="exportUsersBtn" class="button ghost" type="button">导出用户</button>
+                    <button id="exportReferralsBtn" class="button ghost" type="button">导出推荐关系</button>
+                  </div>
+                </div>
+                <details class="admin-fold admin-tools-fold">
+                  <summary>筛选、积分与资格调整</summary>
+                  <div class="filter-bar">
+                    <label>搜索用户<input id="userSearchInput" placeholder="姓名 / 账号 / 手机 / 邀请码 / 推荐人" /></label>
+                    <label>配套状态
+                      <select id="userPackageFilter">
+                        <option value="all">全部配套</option>
+                        <option value="active">有效配套</option>
+                        <option value="expired">未开通/已过期</option>
+                      </select>
+                    </label>
+                    <label>账号状态
+                      <select id="userAccountFilter">
+                        <option value="all">全部账号</option>
+                        <option value="normal">正常</option>
+                        <option value="frozen">已冻结</option>
+                      </select>
+                    </label>
+                    <label>收款风险
+                      <select id="userPayoutRiskFilter">
+                        <option value="all">全部收款</option>
+                        <option value="shared">共享账号</option>
+                        <option value="clean">无共享</option>
+                      </select>
+                    </label>
+                    <label>资料状态
+                      <select id="userProfileFilter">
+                        <option value="all">全部资料</option>
+                        <option value="complete">资料完整</option>
+                        <option value="incomplete">资料不完整</option>
+                      </select>
+                    </label>
+                    <button id="clearUserFiltersBtn" class="button ghost" type="button">清除筛选</button>
+                  </div>
+                  <form id="pointsForm" class="grid-form compact">
+                    <label>用户<select name="userId" required></select></label>
+                    <label>积分调整<input name="points" type="number" step="1" required /></label>
+                    <label>备注<input name="note" required /></label>
+                    <button class="button primary" type="submit">修改积分</button>
+                  </form>
+                  <form id="repeatCreditsForm" class="grid-form compact">
+                    <label>用户<select name="userId" required></select></label>
+                    <label>资格调整<input name="credits" type="number" step="1" required /></label>
+                    <label>备注<input name="note" placeholder="例如：旧用户补资格" required /></label>
+                    <button class="button primary" type="submit">修改奖励池资格</button>
+                  </form>
+                </details>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>用户</th><th>账号</th><th>手机</th><th>邀请码</th><th>推荐人</th><th>积分</th><th>配套状态</th><th>直接推荐</th><th>奖励池资格</th><th>收款风险</th><th>状态</th><th>操作</th></tr></thead>
+                    <tbody id="adminUserTable"></tbody>
+                  </table>
+                </div>
+                <h3 class="subhead">奖励池资格流水</h3>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>时间</th><th>用户</th><th>变动</th><th>余额</th><th>原因</th><th>来源 / 备注</th></tr></thead>
+                    <tbody id="repeatCreditLogTable"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section id="adminOrders" class="tab-panel">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>订单管理</h2>
+                  <div class="actions">
+                    <button id="exportOrdersBtn" class="button ghost" type="button">导出订单</button>
+                  </div>
+                </div>
+                <p id="externalIntegrationSummary" class="muted">POS 外部订单：尚未读取</p>
+                <div class="filter-bar">
+                  <label>搜索订单<input id="orderSearchInput" placeholder="订单号 / 用户 / 配套 / 付款参考号" /></label>
+                  <label>订单状态
+                    <select id="orderStatusFilter">
+                      <option value="all">全部状态</option>
+                      <option value="pending">待处理</option>
+                      <option value="paid">已支付</option>
+                      <option value="reversal-review">退款待复核</option>
+                      <option value="refunded">已退款</option>
+                      <option value="cancelled">已取消</option>
+                    </select>
+                  </label>
+                  <label>订单类型
+                    <select id="orderTypeFilter">
+                      <option value="all">全部类型</option>
+                      <option value="first">首充</option>
+                      <option value="repeat">复购</option>
+                    </select>
+                  </label>
+                  <label>凭证状态
+                    <select id="orderProofFilter">
+                      <option value="all">全部凭证</option>
+                      <option value="uploaded">已上传</option>
+                      <option value="inline">本地小图</option>
+                      <option value="failed">上传失败</option>
+                      <option value="none">未上传</option>
+                    </select>
+                  </label>
+                  <label>风控
+                    <select id="orderRiskFilter">
+                      <option value="all">全部</option>
+                      <option value="risk">只看风险</option>
+                      <option value="normal">只看正常</option>
+                    </select>
+                  </label>
+                  <button id="clearOrderFiltersBtn" class="button ghost" type="button">清除筛选</button>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>订单号</th><th>用户</th><th>配套</th><th>类型</th><th>金额</th><th>付款资料</th><th>积分</th><th>状态</th><th>时间</th><th>操作</th></tr></thead>
+                    <tbody id="adminOrderTable"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section id="adminRewards" class="tab-panel">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>奖励审核</h2>
+                  <div class="actions">
+                    <button id="exportRewardsBtn" class="button ghost" type="button">导出奖励</button>
+                    <button id="confirmDueBtn" class="button primary">确认到期奖励</button>
+                  </div>
+                </div>
+                <div class="filter-bar">
+                  <label>搜索奖励<input id="rewardSearchInput" placeholder="奖励人 / 来源用户 / 订单号" /></label>
+                  <label>奖励状态
+                    <select id="rewardStatusFilter">
+                      <option value="all">全部状态</option>
+                      <option value="due">到期可处理</option>
+                      <option value="pending">待确认</option>
+                      <option value="confirmed">已确认</option>
+                      <option value="cancelled">已取消</option>
+                      <option value="frozen">已冻结</option>
+                    </select>
+                  </label>
+                  <label>奖励类型
+                    <select id="rewardTypeFilter">
+                      <option value="all">全部类型</option>
+                      <option value="first">推荐奖励</option>
+                      <option value="repeat">全部复购奖励</option>
+                      <option value="repeatDirect">下线复购奖励</option>
+                      <option value="repeatPool">奖励池奖励</option>
+                    </select>
+                  </label>
+                  <label>风控
+                    <select id="rewardRiskFilter">
+                      <option value="all">全部</option>
+                      <option value="risk">只看异常</option>
+                      <option value="normal">只看正常</option>
+                    </select>
+                  </label>
+                  <button id="clearRewardFiltersBtn" class="button ghost" type="button">清除筛选</button>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>奖励人</th><th>来源用户</th><th>订单</th><th>类型</th><th>金额</th><th>状态</th><th>可确认日</th><th>操作</th></tr></thead>
+                    <tbody id="adminRewardTable"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section id="adminWithdraws" class="tab-panel">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>提现审核</h2>
+                  <div class="actions">
+                    <button id="exportWithdrawsBtn" class="button ghost" type="button">导出提现</button>
+                  </div>
+                </div>
+                <div class="filter-bar">
+                  <label>搜索提现<input id="withdrawSearchInput" placeholder="编号 / 用户 / 手机 / 收款方式 / 收款账号" /></label>
+                  <label>提现状态
+                    <select id="withdrawStatusFilter">
+                      <option value="all">全部状态</option>
+                      <option value="pending">待处理</option>
+                      <option value="approved">已通过</option>
+                      <option value="rejected">已拒绝</option>
+                      <option value="paidout">已打款</option>
+                    </select>
+                  </label>
+                  <label>风控
+                    <select id="withdrawRiskFilter">
+                      <option value="all">全部</option>
+                      <option value="risk">只看风险</option>
+                      <option value="normal">只看正常</option>
+                    </select>
+                  </label>
+                  <label>最低金额 RM<input id="withdrawMinAmount" type="number" min="0" step="1" placeholder="可选" /></label>
+                  <button id="clearWithdrawFiltersBtn" class="button ghost" type="button">清除筛选</button>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>编号</th><th>用户</th><th>金额</th><th>来源</th><th>方式</th><th>账号</th><th>状态</th><th>时间</th><th>操作</th></tr></thead>
+                    <tbody id="adminWithdrawTable"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section id="adminRisk" class="tab-panel">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>风控规则</h2>
+                  <button id="exportRiskReportBtn" class="button ghost" type="button">导出异常报告</button>
+                </div>
+                <div class="risk-grid" id="adminRiskList"></div>
+              </div>
+            </section>
+
+            <section id="adminLogs" class="tab-panel">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>操作日志</h2>
+                  <div class="actions">
+                    <button id="exportLogsBtn" class="button ghost" type="button">导出日志</button>
+                  </div>
+                </div>
+                <div class="filter-bar">
+                  <label>搜索日志<input id="logSearchInput" placeholder="管理员 / 动作 / 对象 / 详情" /></label>
+                  <label>动作类型
+                    <select id="logActionFilter">
+                      <option value="all">全部动作</option>
+                    </select>
+                  </label>
+                  <label>显示数量
+                    <select id="logLimitFilter">
+                      <option value="50">最新 50 条</option>
+                      <option value="100">最新 100 条</option>
+                      <option value="200" selected>最新 200 条</option>
+                      <option value="all">全部</option>
+                    </select>
+                  </label>
+                  <button id="clearLogFiltersBtn" class="button ghost" type="button">清除筛选</button>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>时间</th><th>管理员</th><th>动作</th><th>对象</th><th>详情</th></tr></thead>
+                    <tbody id="adminLogTable"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="./app.js?v=20260728-referral-correction"></script>
+  </body>
+</html>
+
+

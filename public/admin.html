@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <title>系统后台 | 简单系统</title>
+  <style>
+    :root {
+      --brand: #0f766e;
+      --brand-dark: #0b5d57;
+      --line: #d8e3df;
+      --text: #071d1a;
+      --muted: #66756f;
+      --soft: #eef7f4;
+      --paper: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 16% 6%, rgba(15, 118, 110, .12), transparent 28%),
+        linear-gradient(180deg, #f8fcfb 0%, #ffffff 100%);
+    }
+
+    main {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: 28px clamp(14px, 3vw, 32px) 44px;
+    }
+
+    .topbar,
+    .auth-panel {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .topbar {
+      margin-bottom: 28px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 25px;
+      line-height: 1;
+    }
+
+    h1,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(38px, 7vw, 72px);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .hero {
+      display: grid;
+      gap: 10px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 10px 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .button.primary {
+      border-color: var(--brand);
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .auth-panel {
+      margin-top: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+    }
+
+    .auth-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .card {
+      display: grid;
+      gap: 10px;
+      min-height: 150px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .card:hover {
+      border-color: var(--brand);
+    }
+
+    .card strong {
+      font-size: 26px;
+      line-height: 1.15;
+    }
+
+    .tag {
+      color: var(--brand);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 760px) {
+      .auth-panel {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topbar">
+      <a class="brand" href="./index.html">
+        <span class="brand-mark">简</span>
+        <span>极简养生</span>
+      </a>
+      <a class="button" href="./index.html">返回首页</a>
+    </div>
+
+    <section class="hero">
+      <h1>系统后台</h1>
+      <p>管理员集中处理设置、审核、报告和网页管理。</p>
+    </section>
+
+    <section class="auth-panel">
+      <div>
+        <strong>管理员验证</strong>
+        <p id="authStatus">正在检查登录状态...</p>
+      </div>
+      <div class="auth-actions">
+        <button class="button primary" id="loginBtn" type="button">管理员登录</button>
+        <button class="button hidden" id="logoutBtn" type="button">退出登录</button>
+      </div>
+    </section>
+
+    <section class="grid hidden" id="adminGrid" aria-label="后台功能">
+      <a class="card" href="./pos/index.html">
+        <span class="tag">POS 后台</span>
+        <strong>POS 设置与全局总览</strong>
+        <p>分行、员工授权、商品审核、报告、打印模板和系统设置。</p>
+      </a>
+      <a class="card" href="./simplepay/index.html?role=admin">
+        <span class="tag">支付后台</span>
+        <strong>SimplePay 管理员</strong>
+        <p>审核商家、处理充值、退款、结算、风控和权限。</p>
+      </a>
+      <a class="card" href="./affiliate/index.html">
+        <span class="tag">联盟后台</span>
+        <strong>简单联盟管理</strong>
+        <p>配套设置、订单审核、奖励审核、提现与风控记录。</p>
+      </a>
+      <a class="card" href="./admin-homepage.html">
+        <span class="tag">主页管理</span>
+        <strong>网页设置</strong>
+        <p>调整首页标题、说明、按钮文字和入口显示。</p>
+      </a>
+    </section>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getAuth,
+      browserLocalPersistence,
+      GoogleAuthProvider,
+      onAuthStateChanged,
+      signInWithPopup,
+      signOut,
+      setPersistence
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    let configModule;
+    try {
+      configModule = await import("./shared/firebase-config.local.js");
+    } catch {
+      configModule = await import("./shared/firebase-config.js");
+    }
+
+    const app = initializeApp(configModule.firebaseConfig);
+    const auth = getAuth(app);
+    await setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    const adminEmail = String(configModule.adminEmail || "").trim().toLowerCase();
+    const authStatus = document.querySelector("#authStatus");
+    const loginBtn = document.querySelector("#loginBtn");
+    const logoutBtn = document.querySelector("#logoutBtn");
+    const adminGrid = document.querySelector("#adminGrid");
+
+    function isAdminUser(user) {
+      return Boolean(user?.email && user.email.trim().toLowerCase() === adminEmail);
+    }
+
+    loginBtn.addEventListener("click", async () => {
+      authStatus.textContent = "正在打开 Google 登录...";
+      await signInWithPopup(auth, provider).catch((error) => {
+        authStatus.textContent = `登录失败：${error.message || "请重试"}`;
+      });
+    });
+
+    logoutBtn.addEventListener("click", async () => {
+      authStatus.textContent = "正在退出登录...";
+      localStorage.setItem("simplepos-force-account-choice", "1");
+      await signOut(auth);
+    });
+
+    onAuthStateChanged(auth, (user) => {
+      const adminUser = isAdminUser(user);
+      loginBtn.classList.toggle("hidden", Boolean(user));
+      logoutBtn.classList.toggle("hidden", !user);
+      adminGrid.classList.toggle("hidden", !adminUser);
+
+      if (!user) {
+        authStatus.textContent = "请先使用管理员 Google 账号登录。";
+        return;
+      }
+      if (!adminUser) {
+        authStatus.textContent = `当前账号 ${user.email || user.displayName || ""} 不是管理员，无法进入系统后台。`;
+        return;
+      }
+      authStatus.textContent = `管理员已登录：${user.email || user.displayName || "Google 账号"}。`;
+    });
+  </script>
+</body>
+</html>

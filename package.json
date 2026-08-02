@@ -1,0 +1,13 @@
+{
+  "name": "simple-unified-system",
+  "private": true,
+  "scripts": {
+    "build:rules": "node scripts/build-firestore-rules.js",
+    "check": "node scripts/preflight.js",
+    "check:functions": "node -e \"const f=require('./functions'); console.log(Object.keys(f).length + ' functions loaded');\""
+  },
+  "devDependencies": {
+    "firebase-tools": "^15.22.4",
+    "qrcode-generator": "1.4.4"
+  }
+}

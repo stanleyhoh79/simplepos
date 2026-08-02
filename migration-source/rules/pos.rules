@@ -1,0 +1,169 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.email == "stanleyhoh79@gmail.com";
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email));
+    }
+
+    function isActiveCashier() {
+      return isAdmin()
+        || (
+          signedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.token.email))
+          && userDoc().data.active == true
+        );
+    }
+
+    function sameBranch(branchId) {
+      return isActiveCashier() && userDoc().data.branchId == branchId;
+    }
+
+    function validIntegrationJobCreate(jobId) {
+      let salePath = /databases/$(database)/documents/sales/$(request.resource.data.posOrderId);
+      let sale = getAfter(salePath).data;
+      let operation = request.resource.data.operation;
+      let simplePayOperation = operation == "simplepay.payment" || operation == "simplepay.refund";
+      let affiliateOperation = operation == "affiliate.fulfill" || operation == "affiliate.reverse";
+      let voidOperation = operation == "simplepay.refund" || operation == "affiliate.reverse";
+      return existsAfter(salePath)
+        && request.resource.data.id == jobId
+        && request.resource.data.idempotencyKey == jobId
+        && request.resource.data.sourceSystem == "simple-pos"
+        && request.resource.data.status == "pending"
+        && request.resource.data.attempts == 0
+        && request.resource.data.branchId == sale.branchId
+        && sameBranch(sale.branchId)
+        && (
+          (simplePayOperation && request.resource.data.targetSystem == "simplepay")
+          || (affiliateOperation && request.resource.data.targetSystem == "affiliate")
+        )
+        && (
+          (voidOperation && sale.status == "voided")
+          || (!voidOperation && sale.status != "voided")
+        )
+        && request.resource.data.amount.currency == "MYR"
+        && request.resource.data.amount.value > 0
+        && (
+          !simplePayOperation
+          || request.resource.data.amount.value == sale.total
+        );
+    }
+
+    function validIntegrationJobCancel() {
+      return sameBranch(resource.data.branchId)
+        && request.resource.data.branchId == resource.data.branchId
+        && request.resource.data.posOrderId == resource.data.posOrderId
+        && request.resource.data.status == "canceled"
+        && request.resource.data.canceledPosOrderId == resource.data.posOrderId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "cancelReason",
+          "canceledPosOrderId",
+          "canceledAt",
+          "cloudUpdatedAt"
+        ]);
+    }
+
+    match /users/{email} {
+      allow read: if isAdmin() || (signedIn() && request.auth.token.email == email);
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /branches/{branchId} {
+      allow read: if isActiveCashier();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if isActiveCashier();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (
+          isActiveCashier()
+          && request.resource.data.name == resource.data.name
+          && request.resource.data.barcode == resource.data.barcode
+          && request.resource.data.category == resource.data.category
+          && request.resource.data.price == resource.data.price
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["branchStock", "stock", "updatedAt"])
+          && request.resource.data.branchStock.diff(resource.data.branchStock).affectedKeys()
+            .hasOnly([userDoc().data.branchId])
+          && (
+            userDoc().data.branchId == "hq"
+            || request.resource.data.stock == resource.data.stock
+          )
+        );
+    }
+
+    match /sales/{saleId} {
+      allow read: if isAdmin() || sameBranch(resource.data.branchId);
+      allow create: if isAdmin() || sameBranch(request.resource.data.branchId);
+      allow update: if isAdmin()
+        || (
+          sameBranch(resource.data.branchId)
+          && request.resource.data.branchId == resource.data.branchId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "status",
+            "voidedAt",
+            "voidedBy",
+            "syncStatus",
+            "integrationOutbox",
+            "inventoryReview",
+            "followUp",
+            "updatedAt",
+            "syncedAt"
+          ])
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(["integrationOutbox"])
+            || request.resource.data.status == "voided"
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /integrationJobs/{jobId} {
+      allow read: if isAdmin() || sameBranch(resource.data.branchId);
+      allow create: if isAdmin() || validIntegrationJobCreate(jobId);
+      allow update: if isAdmin() || validIntegrationJobCancel();
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isActiveCashier();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /stockAdjustments/{adjustmentId} {
+      allow read: if isAdmin() || sameBranch(resource.data.branchId);
+      allow create: if isAdmin() || sameBranch(request.resource.data.branchId);
+      allow update, delete: if isAdmin();
+    }
+
+    match /shifts/{shiftId} {
+      allow read: if isAdmin() || sameBranch(resource.data.branchId);
+      allow create: if isAdmin() || sameBranch(request.resource.data.branchId);
+      allow update: if isAdmin()
+        || (
+          sameBranch(resource.data.branchId)
+          && request.resource.data.branchId == resource.data.branchId
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() || isActiveCashier();
+      allow update, delete: if isAdmin();
+    }
+  }
+}

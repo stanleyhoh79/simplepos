@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>每日打卡 | 极简养生系统</title>
+  <script>
+    if (new URLSearchParams(location.search).get("embed") === "1") {
+      document.documentElement.classList.add("is-embedded");
+    }
+  </script>
+  <link rel="stylesheet" href="./styles.css?v=20260725-1">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">极简养生 · 每日记录</p>
+        <h1>每日打卡</h1>
+        <p id="accountLine">正在读取会员与计划资料...</p>
+      </div>
+      <div class="head-actions" id="adminTabs" hidden>
+        <button class="tab-button is-active" type="button" data-view="member">我的打卡</button>
+        <button class="tab-button" type="button" data-view="admin">今日总览</button>
+      </div>
+    </header>
+
+    <section class="state-panel" id="authState">
+      <strong>正在检查登录状态</strong>
+      <span>请稍候，系统会自动使用统一登录账号。</span>
+    </section>
+
+    <section id="memberView" hidden>
+      <section class="program-gate" id="programGate">
+        <p class="eyebrow" id="programGateEyebrow">正在核对计划资格</p>
+        <h2 id="programGateTitle">请稍候</h2>
+        <p id="programGateMessage">系统正在确认你的会员主档和已付款订单。</p>
+        <button class="primary-button gate-button" id="startProgramButton" type="button" hidden>我已准备好，开始 18 天计划</button>
+        <p class="gate-note" id="programGateNote">开始日期由会员自己决定。点击开始当天才算第 1 天。</p>
+      </section>
+
+      <div class="today-strip" id="todayStrip" hidden>
+        <div>
+          <span>今日状态</span>
+          <strong id="planDay">第 - / 18 天</strong>
+        </div>
+        <div>
+          <span>连续打卡</span>
+          <strong id="streakCount">0 天</strong>
+        </div>
+        <div>
+          <span>本阶段完成率</span>
+          <strong id="completionRate">0%</strong>
+        </div>
+      </div>
+
+      <section class="form-card" id="checkinCard" hidden>
+        <div class="section-head">
+          <div>
+            <h2 id="todayTitle">完成今天的记录</h2>
+            <p>只填必要项目，通常 1 分钟内完成。</p>
+          </div>
+          <span class="status-pill" id="todayBadge">未打卡</span>
+        </div>
+
+        <form id="checkinForm">
+          <div class="field-grid">
+            <label>
+              <span>今日体重（kg）</span>
+              <input name="weight" type="number" min="20" max="300" step="0.1" inputmode="decimal" required placeholder="例如：68.5">
+            </label>
+            <label>
+              <span>腰围（cm，可每周填写）</span>
+              <input name="waist" type="number" min="30" max="250" step="0.1" inputmode="decimal" placeholder="选填">
+            </label>
+            <label>
+              <span>内脏脂肪（选填）</span>
+              <input name="visceralFat" type="number" min="1" max="60" step="0.1" inputmode="decimal" placeholder="选填">
+            </label>
+            <label>
+              <span>今日饮料 / 产品</span>
+              <input name="drinkProduct" list="drinkProducts" required placeholder="例如：草本饮料">
+              <datalist id="drinkProducts">
+                <option value="草本饮料"></option>
+                <option value="山楂酸梅汤"></option>
+                <option value="其他"></option>
+              </datalist>
+            </label>
+          </div>
+
+          <fieldset>
+            <legend>是否完成饮用</legend>
+            <div class="choice-row">
+              <label class="choice"><input name="drinkCompleted" type="radio" value="yes" required><span>已完成</span></label>
+              <label class="choice"><input name="drinkCompleted" type="radio" value="no"><span>还没完成</span></label>
+            </div>
+          </fieldset>
+
+          <div class="field-grid">
+            <label>
+              <span>昨晚睡眠</span>
+              <select name="sleepStatus" required>
+                <option value="">请选择</option>
+                <option value="差">差</option>
+                <option value="普通">普通</option>
+                <option value="良好">良好</option>
+              </select>
+            </label>
+            <label>
+              <span>今日排便</span>
+              <select name="bowelStatus" required>
+                <option value="">请选择</option>
+                <option value="无">无</option>
+                <option value="正常">正常</option>
+                <option value="偏稀">偏稀</option>
+                <option value="黏腻">黏腻</option>
+                <option value="干结">干结</option>
+              </select>
+            </label>
+            <label>
+              <span>饮食情况</span>
+              <select name="dietStatus" required>
+                <option value="">请选择</option>
+                <option value="按计划">按计划</option>
+                <option value="大致正常">大致正常</option>
+                <option value="有加餐">有加餐</option>
+                <option value="较油腻或较甜">较油腻或较甜</option>
+              </select>
+            </label>
+            <label>
+              <span>身体感觉</span>
+              <select name="bodyFeeling" required>
+                <option value="">请选择</option>
+                <option value="轻松">轻松</option>
+                <option value="疲劳">疲劳</option>
+                <option value="腹胀">腹胀</option>
+                <option value="水肿">水肿</option>
+                <option value="口干">口干</option>
+                <option value="其他">其他</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="photo-grid">
+            <label class="photo-field">
+              <span>正面自拍</span>
+              <input id="selfieInput" name="selfie" type="file" accept="image/*" capture="user" required>
+              <span class="photo-preview" id="selfiePreview">点击拍照或选择照片</span>
+            </label>
+            <label class="photo-field">
+              <span>舌头照片</span>
+              <input id="tongueInput" name="tongue" type="file" accept="image/*" capture="environment" required>
+              <span class="photo-preview" id="tonguePreview">点击拍照或选择照片</span>
+            </label>
+          </div>
+
+          <label>
+            <span>备注（选填）</span>
+            <textarea name="notes" rows="3" maxlength="500" placeholder="今天还有什么特别感受？"></textarea>
+          </label>
+
+          <button class="primary-button" id="submitButton" type="submit">完成今日打卡</button>
+          <p class="form-status" id="formStatus" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="history-card" id="historyCard" hidden>
+        <div class="section-head">
+          <div>
+            <h2>最近 7 天</h2>
+            <p>快速查看体重、完成情况和身体感觉。</p>
+          </div>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </section>
+    </section>
+
+    <section id="adminView" hidden>
+      <div class="admin-summary">
+        <article><span>计划会员</span><strong id="memberTotal">0</strong></article>
+        <article><span>今日已打卡</span><strong id="checkedTotal">0</strong></article>
+        <article><span>今日未打卡</span><strong id="missingTotal">0</strong></article>
+      </div>
+
+      <section class="form-card weekly-measurement-card" hidden aria-hidden="true">
+        <div class="section-head">
+          <div>
+            <h2>线下每周测量</h2>
+            <p>选择会员后录入本周测量。系统会新增记录，并以初始基线及上一次测量作为对照，不会覆盖旧资料。</p>
+          </div>
+        </div>
+        <form id="weeklyMeasurementForm">
+          <label>
+            会员
+            <select id="weeklyMemberSelect" name="memberProfileId" required>
+              <option value="">正在读取会员资料...</option>
+            </select>
+          </label>
+          <div class="field-grid">
+            <label>测量日期<input name="measuredOn" type="date" required></label>
+            <label>线下测量备注（选填）<input name="notes" maxlength="300" placeholder="例如：第 2 周门店复测"></label>
+            <label>体重（kg）<input name="weight" type="number" min="20" max="300" step="0.1" inputmode="decimal"></label>
+            <label>腰围（cm）<input name="waist" type="number" min="30" max="250" step="0.1" inputmode="decimal"></label>
+            <label>体脂肪（%）<input name="bodyFatPct" type="number" min="0" max="100" step="0.1" inputmode="decimal"></label>
+            <label>内脏脂肪等级<input name="visceralFatLevel" type="number" min="0" max="60" step="1" inputmode="numeric"></label>
+            <label>骨量（kg）<input name="boneMassKg" type="number" min="0" max="10" step="0.1" inputmode="decimal"></label>
+            <label>基础代谢率（kcal/日）<input name="basalMetabolicRateKcal" type="number" min="0" max="5000" step="1" inputmode="numeric"></label>
+            <label>骨骼肌率（%）<input name="skeletalMusclePct" type="number" min="0" max="100" step="0.1" inputmode="decimal"></label>
+            <label>体水分（%）<input name="bodyWaterPct" type="number" min="0" max="100" step="0.1" inputmode="decimal"></label>
+          </div>
+          <p id="weeklyMeasurementHint" class="template-help">选择会员后会显示其初始基线数据。</p>
+          <button class="primary-button" id="saveWeeklyMeasurementButton" type="submit">保存本周测量</button>
+          <p id="weeklyMeasurementStatus" class="form-status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="form-card reminder-card">
+        <div class="section-head">
+          <div>
+            <h2>WhatsApp 提醒模板</h2>
+            <p>系统填入会员姓名、计划天数和当天打卡链接，由工作人员逐个确认发送。</p>
+          </div>
+          <button class="secondary-button" id="saveTemplateButton" type="button">保存模板</button>
+        </div>
+        <textarea id="reminderTemplate" rows="6">{姓名}，早安。今天是{计划}第{天数}天。
+请完成今天的身体记录和饮用打卡：
+{链接}</textarea>
+        <p class="template-help">可用变量：{姓名}、{计划}、{天数}、{链接}</p>
+      </section>
+
+      <section class="history-card">
+        <div class="section-head">
+          <div>
+            <h2>今日会员状态</h2>
+            <p>未打卡会员优先显示。点击按钮才会打开 WhatsApp，不会自动发送。</p>
+          </div>
+          <button class="secondary-button" id="refreshAdminButton" type="button">刷新</button>
+        </div>
+        <div class="member-roster" id="memberRoster"></div>
+      </section>
+    </section>
+  </main>
+
+  <script type="module" src="./script.js?v=20260729-1"></script>
+</body>
+</html>

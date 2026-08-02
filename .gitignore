@@ -1,0 +1,19 @@
+# Local Firebase web configuration is generated per environment.
+public/shared/firebase-config.local.js
+
+# Dependencies and local tooling output.
+functions/node_modules/
+node_modules/
+*.log
+firebase-debug.log
+.firebase/
+
+# Never commit credentials.
+*.pem
+*service-account*.json
+*serviceAccount*.json
+.env
+.env.*
+
+# Local project backups
+backups/

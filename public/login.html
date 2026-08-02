@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <title>登录 | 极简养生</title>
+  <style>
+    :root {
+      --brand: #0f766e;
+      --line: #d8e3df;
+      --text: #071d1a;
+      --muted: #66756f;
+      --soft: #eef7f4;
+      --danger: #b42318;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: #fff;
+    }
+
+    .login-card {
+      width: min(560px, 100%);
+      display: grid;
+      gap: 22px;
+      padding: clamp(24px, 5vw, 44px);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: linear-gradient(135deg, #fff, var(--soft));
+      box-shadow: 0 24px 80px rgba(7, 29, 26, .08);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: inherit;
+      text-decoration: none;
+      font-size: 28px;
+      font-weight: 900;
+    }
+
+    .brand-mark {
+      width: 56px;
+      height: 56px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 34px;
+    }
+
+    h1,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(42px, 8vw, 72px);
+      line-height: 1;
+    }
+
+    p {
+      color: var(--muted);
+      font-size: 20px;
+      line-height: 1.55;
+    }
+
+    .button {
+      min-height: 58px;
+      border: 1px solid #000;
+      border-radius: 999px;
+      background: #000;
+      color: #fff;
+      font: inherit;
+      font-size: 20px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .button.secondary {
+      border-color: var(--line);
+      background: #fff;
+      color: var(--text);
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+    }
+
+    .button.hidden {
+      display: none;
+    }
+
+    .status {
+      min-height: 28px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .status.error {
+      color: var(--danger);
+    }
+  </style>
+</head>
+<body>
+  <main class="login-card">
+    <a class="brand" href="./index.html">
+      <span class="brand-mark">简</span>
+      <span>极简养生</span>
+    </a>
+    <h1>登录使用系统</h1>
+    <p>请使用 Google 电邮完成验证。登录成功后，会自动回到系统使用页面。</p>
+    <div class="actions">
+      <button class="button" id="googleLoginBtn" type="button">使用 Google 电邮验证</button>
+      <button class="button hidden" id="enterSystemBtn" type="button">进入系统</button>
+      <button class="button secondary" id="backBtn" type="button">返回首页</button>
+    </div>
+    <p class="status" id="statusLine">正在准备登录...</p>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getAuth,
+      browserLocalPersistence,
+      getRedirectResult,
+      GoogleAuthProvider,
+      onAuthStateChanged,
+      setPersistence,
+      signOut,
+      signInWithPopup,
+      signInWithRedirect
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    let configModule;
+    try {
+      configModule = await import("./shared/firebase-config.local.js");
+    } catch {
+      configModule = await import("./shared/firebase-config.js");
+    }
+
+    const app = initializeApp(configModule.firebaseConfig);
+    const auth = getAuth(app);
+    await setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    const statusLine = document.querySelector("#statusLine");
+    const googleLoginBtn = document.querySelector("#googleLoginBtn");
+    const enterSystemBtn = document.querySelector("#enterSystemBtn");
+    const backBtn = document.querySelector("#backBtn");
+    const unifiedLoginKey = "simplepos-unified-google-user";
+    const loginReturnKey = "simplepos-login-returning";
+    const forceAccountChoiceKey = "simplepos-force-account-choice";
+    const params = new URLSearchParams(window.location.search);
+    const workspaceVersion = "workspace-auth4";
+    const fallbackNext = `./system.html?module=home&v=${workspaceVersion}`;
+    const next = sanitizeNext(params.get("next") || fallbackNext);
+    let finished = false;
+    let interactiveLoginStarted = false;
+    let redirectLoginCompleted = false;
+    const forceAccountChoice = params.get("forceAccount") === "1"
+      || localStorage.getItem(forceAccountChoiceKey) === "1";
+
+    // A workspace logout must not silently resume the browser's previous Firebase session.
+    // Google may still remember accounts, but the next sign-in will explicitly ask which one to use.
+    if (forceAccountChoice) {
+      try {
+        await signOut(auth);
+      } catch {}
+      localStorage.removeItem(forceAccountChoiceKey);
+      localStorage.removeItem(unifiedLoginKey);
+    }
+
+    function sanitizeNext(value) {
+      const text = String(value || "").trim();
+      if (!text || text.startsWith("http:") || text.startsWith("https:") || text.startsWith("//")) {
+        return fallbackNext;
+      }
+      if (text.includes("app.html") || text.includes("system.html")) {
+        const url = new URL(text, window.location.href);
+        url.searchParams.set("v", workspaceVersion);
+        return `./system.html${url.search}${url.hash}`;
+      }
+      return text;
+    }
+
+    function rememberUnifiedLogin(user) {
+      localStorage.setItem(unifiedLoginKey, JSON.stringify({
+        uid: user.uid || "",
+        email: user.email || "",
+        displayName: user.displayName || "",
+        updatedAt: new Date().toISOString()
+      }));
+    }
+
+    function finishLogin(user) {
+      if (finished) return;
+      if (!user) {
+        statusLine.classList.add("error");
+        statusLine.textContent = "暂时还没有取得登录状态，请再点击一次 Google 电邮验证。";
+        return;
+      }
+      finished = true;
+      rememberUnifiedLogin(user);
+      try {
+        sessionStorage.setItem(loginReturnKey, String(Date.now()));
+      } catch {}
+      googleLoginBtn.classList.add("hidden");
+      enterSystemBtn.classList.remove("hidden");
+      statusLine.textContent = "登录成功，正在进入系统...";
+      window.location.replace(next);
+    }
+
+    function showError(error) {
+      statusLine.classList.add("error");
+      statusLine.textContent = `登录未完成：${error?.code || error?.message || "请点击按钮重试"}`;
+    }
+
+    googleLoginBtn.addEventListener("click", async () => {
+      statusLine.classList.remove("error");
+      statusLine.textContent = "正在打开 Google 电邮验证...";
+      googleLoginBtn.disabled = true;
+      try {
+        // Firebase can otherwise reuse its own cached session before Google opens.
+        // An explicit login must always let the person choose the Google account.
+        interactiveLoginStarted = true;
+        await signOut(auth).catch(() => {});
+        provider.setCustomParameters({ prompt: "select_account" });
+        const result = await signInWithPopup(auth, provider);
+        finishLogin(result.user || auth.currentUser);
+      } catch (error) {
+        if (error?.code === "auth/popup-blocked") {
+          await signInWithRedirect(auth, provider);
+          return;
+        }
+        googleLoginBtn.disabled = false;
+        showError(error);
+      }
+    });
+
+    enterSystemBtn.addEventListener("click", () => {
+      finishLogin(auth.currentUser);
+    });
+
+    backBtn.addEventListener("click", () => {
+      window.location.href = "./index.html";
+    });
+
+    try {
+      const redirectResult = await getRedirectResult(auth);
+      if (redirectResult?.user) {
+        redirectLoginCompleted = true;
+        finishLogin(redirectResult.user);
+      }
+    } catch (error) {
+      showError(error);
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user && (interactiveLoginStarted || redirectLoginCompleted || !forceAccountChoice)) {
+        finishLogin(user);
+        return;
+      }
+      googleLoginBtn.disabled = false;
+      statusLine.textContent = "请点击按钮完成 Google 电邮验证。";
+    });
+  </script>
+</body>
+</html>

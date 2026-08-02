@@ -1,0 +1,13 @@
+{
+  "name": "simplepay-functions",
+  "description": "Trusted money operations for SimplePay",
+  "main": "index.js",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.0.1"
+  }
+}

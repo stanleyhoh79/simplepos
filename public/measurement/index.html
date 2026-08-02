@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>每周测量 | 极简养生系统</title>
+  <script>
+    if (new URLSearchParams(location.search).get("embed") === "1") {
+      document.documentElement.classList.add("is-embedded");
+    }
+  </script>
+  <link rel="stylesheet" href="./styles.css?v=20260725-1">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">极简养生 · 阶段成果</p>
+        <h1>每周测量</h1>
+        <p>基线永远保留；每周线下测量只新增记录，让变化看得见。</p>
+      </div>
+    </header>
+
+    <section id="authState" class="state-panel" role="status">
+      <strong>正在读取会员资料...</strong>
+      <span>请稍候，系统会自动使用统一登录账号。</span>
+    </section>
+
+    <section id="memberView" hidden>
+      <section class="intro-panel">
+        <p class="eyebrow">本周观察</p>
+        <h2 id="memberName">我的身体变化</h2>
+        <p id="memberMessage">线下测量后，工作人员会把本周数据加入这里。</p>
+      </section>
+
+      <section id="trendGrid" class="trend-grid" aria-label="身体变化趋势"></section>
+
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">身体数据记录</p>
+            <h2>身体测量列表</h2>
+            <p>初始数据是唯一基线；未来每周测量会继续追加，不会覆盖旧记录。</p>
+          </div>
+        </div>
+        <div id="measurementHistory" class="measurement-history"></div>
+      </section>
+    </section>
+
+    <section id="adminView" class="panel admin-panel" hidden>
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">线下服务录入</p>
+          <h2>新增每周测量</h2>
+          <p>只会新增一笔历史记录。系统自动与基线及上一次测量对比。</p>
+        </div>
+      </div>
+      <form id="weeklyMeasurementForm" class="measurement-form">
+        <label>
+          会员
+          <select id="weeklyMemberSelect" name="memberProfileId" required>
+            <option value="">正在读取可测量会员...</option>
+          </select>
+        </label>
+        <label>
+          测量日期
+          <input name="measuredOn" type="date" required>
+        </label>
+        <div class="form-grid">
+          <label>体重（kg）<input name="weight" type="number" min="1" step="0.1" inputmode="decimal"></label>
+          <label>腰围（cm）<input name="waist" type="number" min="1" step="0.1" inputmode="decimal"></label>
+          <label>体脂肪（%）<input name="bodyFatPct" type="number" min="0" max="100" step="0.1" inputmode="decimal"></label>
+          <label>内脏脂肪等级<input name="visceralFatLevel" type="number" min="0" step="1" inputmode="numeric"></label>
+          <label>骨量（kg）<input name="boneMassKg" type="number" min="0" step="0.1" inputmode="decimal"></label>
+          <label>基础代谢（kcal/日）<input name="basalMetabolicRateKcal" type="number" min="0" step="1" inputmode="numeric"></label>
+          <label>骨骼肌率（%）<input name="skeletalMusclePct" type="number" min="0" max="100" step="0.1" inputmode="decimal"></label>
+          <label>体水分（%）<input name="bodyWaterPct" type="number" min="0" max="100" step="0.1" inputmode="decimal"></label>
+        </div>
+        <label>
+          本周观察 / 备注
+          <textarea name="notes" rows="3" placeholder="例如：精神较好、腰围下降；下周继续保持饮水与作息。"></textarea>
+        </label>
+        <p id="weeklyMeasurementHint" class="helper-text">选择会员后会显示初始基线数据。</p>
+        <button class="primary-button" id="saveWeeklyMeasurementButton" type="submit">保存本周测量</button>
+        <p id="weeklyMeasurementStatus" class="form-status" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+  <script type="module" src="./script.js?v=20260725-1"></script>
+</body>
+</html>

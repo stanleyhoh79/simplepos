@@ -1,0 +1,979 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Simple POS
+    function posSignedIn() {
+          return request.auth != null;
+        }
+    
+        function posIsAdmin() {
+          return posSignedIn()
+            && request.auth.token.email == "stanleyhoh79@gmail.com";
+        }
+    
+        function posUserDoc() {
+          return get(/databases/$(database)/documents/users/$(request.auth.token.email));
+        }
+    
+        function posIsActiveCashier() {
+          return posIsAdmin()
+            || (
+              posSignedIn()
+              && exists(/databases/$(database)/documents/users/$(request.auth.token.email))
+              && posUserDoc().data.active == true
+            );
+        }
+    
+        function posAllowedBranchIds() {
+          return posUserDoc().data.role == "regional_manager"
+            && posUserDoc().data.branchIds is list
+            ? posUserDoc().data.branchIds
+            : [posUserDoc().data.branchId];
+        }
+
+        function posSameBranch(branchId) {
+          return posIsAdmin()
+            || (
+              posIsActiveCashier()
+              && posAllowedBranchIds().hasAny([branchId])
+            );
+        }
+    
+        function posValidIntegrationJobCreate(jobId) {
+          let salePath = /databases/$(database)/documents/sales/$(request.resource.data.posOrderId);
+          let sale = getAfter(salePath).data;
+          let operation = request.resource.data.operation;
+          let simplePayOperation = operation == "simplepay.payment" || operation == "simplepay.refund";
+          let affiliateOperation = operation == "affiliate.fulfill" || operation == "affiliate.reverse";
+          let voidOperation = operation == "simplepay.refund" || operation == "affiliate.reverse";
+          return existsAfter(salePath)
+            && request.resource.data.id == jobId
+            && request.resource.data.idempotencyKey == jobId
+            && request.resource.data.sourceSystem == "simple-pos"
+            && request.resource.data.status == "pending"
+            && request.resource.data.attempts == 0
+            && request.resource.data.branchId == sale.branchId
+            && posSameBranch(sale.branchId)
+            && (
+              (simplePayOperation && request.resource.data.targetSystem == "simplepay")
+              || (affiliateOperation && request.resource.data.targetSystem == "affiliate")
+            )
+            && (
+              (voidOperation && sale.status == "voided")
+              || (!voidOperation && sale.status != "voided")
+            )
+            && request.resource.data.amount.currency == "MYR"
+            && request.resource.data.amount.value > 0
+            && (
+              !simplePayOperation
+              || request.resource.data.amount.value == sale.total
+            );
+        }
+    
+        function posValidIntegrationJobCancel() {
+          return posSameBranch(resource.data.branchId)
+            && request.resource.data.branchId == resource.data.branchId
+            && request.resource.data.posOrderId == resource.data.posOrderId
+            && request.resource.data.status == "canceled"
+            && request.resource.data.canceledPosOrderId == resource.data.posOrderId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "status",
+              "cancelReason",
+              "canceledPosOrderId",
+              "canceledAt",
+              "cloudUpdatedAt"
+            ]);
+        }
+    
+        match /users/{email} {
+          allow read: if posIsAdmin() || (posSignedIn() && request.auth.token.email == email);
+          allow create, update, delete: if posIsAdmin();
+        }
+    
+        match /branches/{branchId} {
+          allow read: if posIsActiveCashier();
+          allow create, update, delete: if posIsAdmin();
+        }
+    
+        match /products/{productId} {
+          allow read: if posIsActiveCashier();
+          allow create, delete: if posIsAdmin();
+          allow update: if posIsAdmin()
+            || (
+              posIsActiveCashier()
+              && request.resource.data.name == resource.data.name
+              && request.resource.data.barcode == resource.data.barcode
+              && request.resource.data.category == resource.data.category
+              && request.resource.data.price == resource.data.price
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(["branchStock", "stock", "updatedAt"])
+              && request.resource.data.branchStock.diff(resource.data.branchStock).affectedKeys()
+                .hasOnly(posAllowedBranchIds())
+              && (
+                posAllowedBranchIds().hasAny(["hq"])
+                || request.resource.data.stock == resource.data.stock
+              )
+            );
+        }
+
+        match /productRequests/{requestId} {
+          allow read: if posIsAdmin() || posSameBranch(resource.data.branchId);
+          allow create: if posIsActiveCashier()
+            && posSameBranch(request.resource.data.branchId)
+            && request.resource.data.status == "pending"
+            && request.resource.data.createdBy.email == request.auth.token.email
+            && request.resource.data.diff({}).affectedKeys().hasOnly([
+              "id",
+              "type",
+              "status",
+              "branchId",
+              "branchName",
+              "product",
+              "targetProductId",
+              "createdBy",
+              "createdAt",
+              "updatedAt"
+            ]);
+          allow update: if posIsAdmin();
+          allow delete: if posIsAdmin();
+        }
+
+        match /customerIntakes/{intakeId} {
+          allow create: if (
+              posIsAdmin()
+              || request.auth != null
+            )
+            && request.resource.data.customer.email is string
+            && (
+              posIsAdmin()
+              || request.resource.data.customer.email == request.auth.token.email
+            )
+            && request.resource.data.status == "new"
+            && request.resource.data.source == "customer-self-form"
+            && request.resource.data.customer.name is string
+            && request.resource.data.customer.phone is string
+            && request.resource.data.customer.name.size() > 0
+            && request.resource.data.customer.phone.size() > 0
+            && request.resource.data.customer.email.size() > 0
+            && request.resource.data.diff({}).affectedKeys().hasOnly([
+              "id",
+              "fileNumber",
+              "status",
+              "branchId",
+              "branchName",
+              "formType",
+              "customer",
+              "packageName",
+              "plan",
+              "goal",
+              "baseline",
+              "healthScreen",
+              "lifestyle",
+              "progress",
+              "caseAuthorization",
+              "ambassadorApplication",
+              "websiteTerms",
+              "pdpaConsent",
+              "medicalDisclaimerAccepted",
+              "source",
+              "createdAt",
+              "updatedAt",
+              "cloudCreatedAt",
+              "cloudUpdatedAt"
+            ]);
+          allow read: if posIsAdmin()
+            || posSameBranch(resource.data.branchId)
+            || (
+              request.auth != null
+              && resource.data.customer.email == request.auth.token.email
+            );
+          allow update: if posIsAdmin()
+            || (
+              posSameBranch(resource.data.branchId)
+              && request.resource.data.branchId == resource.data.branchId
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                "status",
+                "followUp",
+                "updatedAt",
+                "cloudUpdatedAt"
+              ])
+            );
+          allow delete: if posIsAdmin();
+        }
+
+        match /memberProfiles/{profileId} {
+          // A member can create exactly one profile whose document ID, UID and
+          // email are all bound to the current Google account.  Keep this path
+          // deliberately small: extra profile sections evolve independently.
+          allow create: if posIsAdmin()
+            || (
+              request.auth != null
+              && profileId == "MP-" + request.auth.uid
+              && request.resource.data.id == profileId
+              && request.resource.data.memberUid == request.auth.uid
+              && request.resource.data.customer.email == request.auth.token.email
+              && request.resource.data.source == "customer-self-form"
+              && request.resource.data.status == "active"
+              && request.resource.data.customer.name is string
+              && request.resource.data.customer.phone is string
+              && request.resource.data.customer.email is string
+              && request.resource.data.customer.name.size() > 0
+              && request.resource.data.customer.phone.size() > 0
+              && request.resource.data.customer.email.size() > 0
+            );
+          allow update: if (
+              posIsAdmin()
+              || (
+                request.auth != null
+                && request.resource.data.memberUid == request.auth.uid
+                && (
+                  (
+                    resource.data.keys().hasAll(["memberUid"])
+                    && resource.data.memberUid == request.auth.uid
+                  )
+                  || resource.data.customer.email == request.auth.token.email
+                )
+              )
+            )
+            && request.resource.data.source == "customer-self-form"
+            && request.resource.data.status == "active"
+            && request.resource.data.id == profileId
+            && request.resource.data.memberUid is string
+            && request.resource.data.customer.name is string
+            && request.resource.data.customer.phone is string
+            && request.resource.data.customer.email is string
+            && request.resource.data.customer.name.size() > 0
+            && request.resource.data.customer.phone.size() > 0
+            && request.resource.data.customer.email.size() > 0
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "memberUid",
+              "source",
+              "status",
+              "branchId",
+              "branchName",
+              "latestIntakeId",
+              "latestFormType",
+              "packageName",
+              "goal",
+              "customer",
+              "plan",
+              "baseline",
+              "healthScreen",
+              "lifestyle",
+              "progress",
+              "caseAuthorization",
+              "ambassadorApplication",
+              "websiteTerms",
+              "pdpaConsent",
+              "medicalDisclaimerAccepted",
+              "dailyProgram",
+              "updatedAt",
+              "cloudUpdatedAt"
+            ])
+            && (
+              posIsAdmin()
+              || !request.resource.data.diff(resource.data).affectedKeys().hasAny(["dailyProgram", "baseline"])
+            );
+          allow read: if posIsAdmin()
+            || posSameBranch(resource.data.branchId)
+            || (
+              request.auth != null
+              && (
+                (
+                  resource.data.keys().hasAll(["memberUid"])
+                  && resource.data.memberUid == request.auth.uid
+                )
+                || resource.data.customer.email == request.auth.token.email
+              )
+            );
+          allow delete: if posIsAdmin();
+        }
+
+        match /dailyCheckins/{checkinId} {
+          allow create, update: if (
+              posIsAdmin()
+              || (
+                request.auth != null
+                && request.resource.data.memberUid == request.auth.uid
+                && request.resource.data.memberEmail == request.auth.token.email
+              )
+            )
+            && request.resource.data.id == checkinId
+            && request.resource.data.memberUid is string
+            && request.resource.data.memberEmail is string
+            && request.resource.data.memberProfileId is string
+            && request.resource.data.checkinDate is string
+            && request.resource.data.source == "member-daily-checkin"
+            && request.resource.data.schemaVersion == 1
+            && get(/databases/$(database)/documents/memberProfiles/$(request.resource.data.memberProfileId)).data.dailyProgram.status == "active"
+            && get(/databases/$(database)/documents/memberProfiles/$(request.resource.data.memberProfileId)).data.dailyProgram.startDate <= request.resource.data.checkinDate
+            && request.resource.data.diff({}).affectedKeys().hasOnly([
+              "id",
+              "memberUid",
+              "memberEmail",
+              "memberProfileId",
+              "memberName",
+              "memberPhone",
+              "branchId",
+              "branchName",
+              "planName",
+              "planStartDate",
+              "planDurationDays",
+              "dayNumber",
+              "checkinDate",
+              "timeZone",
+              "weight",
+              "waist",
+              "visceralFat",
+              "drinkProduct",
+              "drinkCompleted",
+              "sleepStatus",
+              "bowelStatus",
+              "dietStatus",
+              "bodyFeeling",
+              "notes",
+              "onTime",
+              "source",
+              "schemaVersion",
+              "submittedAt",
+              "updatedAtIso"
+            ]);
+          allow read: if posIsAdmin()
+            || (
+              request.auth != null
+              && resource.data.memberUid == request.auth.uid
+              && resource.data.memberEmail == request.auth.token.email
+            );
+          allow delete: if posIsAdmin();
+        }
+
+        match /dailyCheckinMedia/{checkinId} {
+          allow create, update: if (
+              posIsAdmin()
+              || (
+                request.auth != null
+                && request.resource.data.memberUid == request.auth.uid
+                && request.resource.data.memberEmail == request.auth.token.email
+              )
+            )
+            && request.resource.data.id == checkinId
+            && request.resource.data.selfieDataUrl is string
+            && request.resource.data.tongueDataUrl is string
+            && request.resource.data.selfieDataUrl.size() < 260000
+            && request.resource.data.tongueDataUrl.size() < 260000
+            && request.resource.data.diff({}).affectedKeys().hasOnly([
+              "id",
+              "memberUid",
+              "memberEmail",
+              "selfieDataUrl",
+              "tongueDataUrl",
+              "updatedAt"
+            ]);
+          allow read: if posIsAdmin()
+            || (
+              request.auth != null
+              && resource.data.memberUid == request.auth.uid
+              && resource.data.memberEmail == request.auth.token.email
+            );
+          allow delete: if posIsAdmin();
+        }
+
+        // The experience journey is owned by the signed-in member. It is kept
+        // separate from the health profile so participation and refund choices
+        // do not loosen access to sensitive health information.
+        match /memberExperiences/{memberUid} {
+          allow read: if posIsAdmin() || (request.auth != null && request.auth.uid == memberUid);
+          allow create, update: if (
+              posIsAdmin()
+              || (
+                request.auth != null
+                && request.auth.uid == memberUid
+                && request.resource.data.memberUid == request.auth.uid
+                && request.resource.data.memberEmail == request.auth.token.email
+              )
+            )
+            && request.resource.data.memberUid is string
+            && request.resource.data.memberEmail is string
+            && request.resource.data.status in [
+              "in_progress",
+              "completed_pending_choice",
+              "affiliate_activated",
+              "refund_requested"
+            ]
+            && request.resource.data.diff({}).affectedKeys().hasOnly([
+              "memberUid",
+              "memberEmail",
+              "status",
+              "startedAt",
+              "completedAt",
+              "affiliateActivatedAt",
+              "refundDecision",
+              "refundRequestedAt",
+              "updatedAt",
+              "schemaVersion"
+            ]);
+          allow delete: if posIsAdmin();
+        }
+
+        match /experienceRefundRequests/{requestId} {
+          allow read: if posIsAdmin()
+            || (
+              request.auth != null
+              && resource.data.memberUid == request.auth.uid
+              && resource.data.memberEmail == request.auth.token.email
+            );
+          allow create: if request.auth != null
+            && request.resource.data.id == requestId
+            && request.resource.data.memberUid == request.auth.uid
+            && request.resource.data.memberEmail == request.auth.token.email
+            && request.resource.data.status == "pending"
+            && request.resource.data.diff({}).affectedKeys().hasOnly([
+              "id",
+              "memberUid",
+              "memberEmail",
+              "status",
+              "reason",
+              "source",
+              "createdAt",
+              "updatedAt"
+            ]);
+          allow update, delete: if posIsAdmin();
+        }
+    
+        match /sales/{saleId} {
+          allow read: if posIsAdmin() || posSameBranch(resource.data.branchId);
+          allow create: if posIsAdmin() || posSameBranch(request.resource.data.branchId);
+          allow update: if posIsAdmin()
+            || (
+              posSameBranch(resource.data.branchId)
+              && request.resource.data.branchId == resource.data.branchId
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                "status",
+                "voidedAt",
+                "voidedBy",
+                "syncStatus",
+                "integrationOutbox",
+                "inventoryReview",
+                "followUp",
+                "updatedAt",
+                "syncedAt"
+              ])
+              && (
+                !request.resource.data.diff(resource.data).affectedKeys().hasAny(["integrationOutbox"])
+                || request.resource.data.status == "voided"
+              )
+            );
+          allow delete: if posIsAdmin();
+        }
+    
+        match /integrationJobs/{jobId} {
+          allow read: if posIsAdmin() || posSameBranch(resource.data.branchId);
+          allow create: if posIsAdmin() || posValidIntegrationJobCreate(jobId);
+          allow update: if posIsAdmin() || posValidIntegrationJobCancel();
+          allow delete: if posIsAdmin();
+        }
+    
+        match /settings/{settingId} {
+          allow read: if posIsActiveCashier();
+          allow create, update, delete: if posIsAdmin();
+        }
+
+        match /portalSettings/{settingId} {
+          allow read: if true;
+          allow create, update, delete: if posIsAdmin();
+        }
+    
+        match /stockAdjustments/{adjustmentId} {
+          allow read: if posIsAdmin() || posSameBranch(resource.data.branchId);
+          allow create: if posIsAdmin() || posSameBranch(request.resource.data.branchId);
+          allow update, delete: if posIsAdmin();
+        }
+    
+        match /shifts/{shiftId} {
+          allow read: if posIsAdmin() || posSameBranch(resource.data.branchId);
+          allow create: if posIsAdmin() || posSameBranch(request.resource.data.branchId);
+          allow update: if posIsAdmin()
+            || (
+              posSameBranch(resource.data.branchId)
+              && request.resource.data.branchId == resource.data.branchId
+            );
+          allow delete: if posIsAdmin();
+        }
+    
+        match /auditLogs/{logId} {
+          allow read: if posIsAdmin();
+          allow create: if posIsAdmin() || posIsActiveCashier();
+          allow update, delete: if posIsAdmin();
+        }
+
+    // SimplePay
+    function paySignedIn() {
+          return request.auth != null;
+        }
+    
+        function payOwnerEmail() {
+          return "stanleyhoh79@gmail.com";
+        }
+    
+        function payIsOwner() {
+          return paySignedIn() && request.auth.token.email == payOwnerEmail();
+        }
+    
+        function payIsAdmin() {
+          return payIsOwner()
+            || (
+              paySignedIn()
+              && exists(/databases/$(database)/documents/adminUsers/$(request.auth.token.email))
+              && get(/databases/$(database)/documents/adminUsers/$(request.auth.token.email)).data.enabled != false
+            );
+        }
+    
+        function payIsSelf(userId) {
+          return paySignedIn() && request.auth.uid == userId;
+        }
+    
+        function paySecureMoneyEnabled() {
+          return exists(/databases/$(database)/documents/systemConfig/main)
+            && get(/databases/$(database)/documents/systemConfig/main).data.secureMoneyFunctionsEnabled == true;
+        }
+    
+        function payWalletProfileUpdateIsSafe() {
+          return request.resource.data.balance == resource.data.balance
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.dailyUsage == resource.data.dailyUsage
+            && request.resource.data.transactions == resource.data.transactions
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "email",
+              "displayName",
+              "receiveCode",
+              "role",
+              "kycStatus",
+              "kycFullName",
+              "kycIdNumber",
+              "kycPhone",
+              "updatedAt"
+            ]);
+        }
+    
+        function payMerchantProfileUpdateIsSafe() {
+          return request.resource.data.status == resource.data.status
+            && request.resource.data.totalReceived == resource.data.totalReceived
+            && request.resource.data.settlementBalance == resource.data.settlementBalance
+            && request.resource.data.refundTotal == resource.data.refundTotal
+            && request.resource.data.orders == resource.data.orders
+            && request.resource.data.refunds == resource.data.refunds
+            && request.resource.data.settlements == resource.data.settlements
+            && request.resource.data.transactions == resource.data.transactions
+            && request.resource.data.notifications == resource.data.notifications
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "email",
+              "displayName",
+              "businessName",
+              "contactName",
+              "contactPhone",
+              "businessAddress",
+              "settlementBank",
+              "settlementAccount",
+              "merchantCode",
+              "updatedAt"
+            ]);
+        }
+    
+        match /wallets/{userId} {
+          allow read: if payIsAdmin() || payIsSelf(userId);
+          allow create: if payIsAdmin()
+            || (
+              payIsSelf(userId)
+              && request.resource.data.balance == 0
+              && request.resource.data.status == "active"
+            );
+          allow update: if payIsAdmin()
+            || (
+              payIsSelf(userId)
+              && (
+                !paySecureMoneyEnabled()
+                || payWalletProfileUpdateIsSafe()
+              )
+            );
+          allow delete: if payIsAdmin();
+        }
+    
+        match /merchants/{merchantId} {
+          allow read: if payIsAdmin() || payIsSelf(merchantId);
+          allow create: if payIsAdmin()
+            || (
+              payIsSelf(merchantId)
+              && request.resource.data.status == "pending"
+              && request.resource.data.totalReceived == 0
+              && request.resource.data.settlementBalance == 0
+              && request.resource.data.refundTotal == 0
+            );
+          allow update: if payIsAdmin()
+            || (
+              payIsSelf(merchantId)
+              && (
+                !paySecureMoneyEnabled()
+                || payMerchantProfileUpdateIsSafe()
+              )
+            );
+          allow delete: if payIsAdmin();
+        }
+    
+        match /merchantOrders/{orderId} {
+          allow read: if payIsAdmin()
+            || (
+              paySignedIn()
+              && (
+                resource.data.customerId == request.auth.uid
+                || resource.data.merchantId == request.auth.uid
+              )
+            );
+          allow write: if false;
+        }
+    
+        match /merchantRefundIntents/{intentId} {
+          allow read: if payIsAdmin()
+            || (
+              paySignedIn()
+              && resource.data.merchantId == request.auth.uid
+            );
+          allow write: if false;
+        }
+    
+        match /rechargeRequests/{requestId} {
+          allow read: if payIsAdmin() || (paySignedIn() && resource.data.userId == request.auth.uid);
+          allow create: if paySignedIn()
+            && !paySecureMoneyEnabled()
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.status == "pending";
+          allow update: if payIsAdmin() && !paySecureMoneyEnabled();
+          allow delete: if payIsAdmin();
+        }
+    
+        match /withdrawRequests/{requestId} {
+          allow read: if payIsAdmin() || (paySignedIn() && resource.data.userId == request.auth.uid);
+          allow create: if paySignedIn()
+            && !paySecureMoneyEnabled()
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.status == "pending";
+          allow update: if payIsAdmin() && !paySecureMoneyEnabled();
+          allow delete: if payIsAdmin();
+        }
+    
+        match /refundRequests/{requestId} {
+          allow read: if payIsAdmin()
+            || (
+              paySignedIn()
+              && (
+                resource.data.customerId == request.auth.uid
+                || resource.data.merchantId == request.auth.uid
+              )
+            );
+          allow create: if paySignedIn()
+            && !paySecureMoneyEnabled()
+            && request.resource.data.merchantId == request.auth.uid;
+          allow update: if payIsAdmin() && !paySecureMoneyEnabled();
+          allow delete: if payIsAdmin();
+        }
+    
+        match /settlementRequests/{requestId} {
+          allow read: if payIsAdmin() || (paySignedIn() && resource.data.merchantId == request.auth.uid);
+          allow create: if paySignedIn()
+            && !paySecureMoneyEnabled()
+            && request.resource.data.merchantId == request.auth.uid;
+          allow update: if payIsAdmin() && !paySecureMoneyEnabled();
+          allow delete: if payIsAdmin();
+        }
+    
+        match /kycRequests/{requestId} {
+          allow read: if payIsAdmin() || (paySignedIn() && resource.data.userId == request.auth.uid);
+          allow create: if paySignedIn() && request.resource.data.userId == request.auth.uid;
+          allow update, delete: if payIsAdmin();
+        }
+    
+        match /supportTickets/{ticketId} {
+          allow read: if payIsAdmin() || (paySignedIn() && resource.data.userId == request.auth.uid);
+          allow create: if paySignedIn() && request.resource.data.userId == request.auth.uid;
+          allow update, delete: if payIsAdmin();
+        }
+    
+        match /transactions/{transactionId} {
+          allow read: if payIsAdmin() || (paySignedIn() && resource.data.accountId == request.auth.uid);
+          allow create: if paySignedIn()
+            && !paySecureMoneyEnabled()
+            && request.resource.data.accountId == request.auth.uid;
+          allow update: if payIsAdmin() && !paySecureMoneyEnabled();
+          allow delete: if payIsAdmin();
+        }
+    
+        match /marketingItems/{itemId} {
+          allow read: if paySignedIn();
+          allow write: if payIsAdmin();
+        }
+    
+        match /payAuditLogs/{logId} {
+          allow read, write: if payIsAdmin();
+        }
+    
+        match /adminUsers/{email} {
+          allow read: if paySignedIn() && (request.auth.token.email == email || payIsAdmin());
+          allow write: if payIsOwner();
+        }
+    
+        match /systemConfig/{configId} {
+          allow read: if paySignedIn();
+          allow write: if payIsAdmin();
+        }
+    
+        match /paymentIntents/{intentId} {
+          allow get: if resource.data.amountPoints > 0
+            && resource.data.merchantId is string
+            && resource.data.branchId is string
+            && (
+              !("customer" in resource.data)
+              || (
+                resource.data.customer.name == ""
+                && resource.data.customer.phone == ""
+              )
+            );
+          allow list, create, update, delete: if false;
+        }
+    
+        match /{document=**} {
+          allow read, write: if false;
+        }
+
+    // Affiliate
+    function affSignedIn() {
+          return request.auth != null;
+        }
+    
+        function affIsAdmin() {
+          return affSignedIn()
+            && request.auth.token.email in [
+              "stanleyhoh79@gmail.com"
+            ];
+        }
+    
+        function affIsOwner(userId) {
+          return affSignedIn() && request.auth.uid == userId;
+        }
+    
+        function affUserCreateIsSafe(userId) {
+          return affIsOwner(userId)
+            && request.resource.data.id == userId
+            && request.resource.data.firebaseUid == userId
+            && request.resource.data.points == 0
+            && request.resource.data.slots == 0
+            && request.resource.data.repeatCredits == 0
+            && request.resource.data.repeatCooldownUntil == ""
+            && request.resource.data.packageUntil == ""
+            && request.resource.data.frozen == false;
+        }
+    
+        function affUserUpdateIsSafe(userId) {
+          return affIsOwner(userId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              "id",
+              "firebaseUid",
+              "points",
+              "slots",
+              "repeatCredits",
+              "repeatCreditQueueAt",
+              "repeatCooldownUntil",
+              "packageUntil",
+              "level",
+              "frozen"
+            ]) == false
+            && (
+              request.resource.data.inviteCode == resource.data.inviteCode
+              || !("inviteCode" in resource.data)
+            )
+            && (
+              request.resource.data.referrerId == resource.data.referrerId
+              || !("referrerId" in resource.data)
+              || resource.data.referrerId == ""
+            );
+        }
+    
+        function affOwnerCanCreateOrder() {
+          return affSignedIn()
+            && request.auth.uid == request.resource.data.userId
+            && request.resource.data.status == "pending"
+            && request.resource.data.points == 0;
+        }
+    
+        function affOwnerCanUpdateOrder() {
+          return affSignedIn()
+            && request.auth.uid == resource.data.userId
+            && request.resource.data.userId == resource.data.userId
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.amount == resource.data.amount
+            && request.resource.data.points == resource.data.points
+            && request.resource.data.planId == resource.data.planId
+            && request.resource.data.type == resource.data.type;
+        }
+    
+        function affOwnerCanCreateWithdraw() {
+          return affSignedIn()
+            && request.auth.uid == request.resource.data.userId
+            && request.resource.data.status == "pending"
+            && request.resource.data.source == "reward"
+            && request.resource.data.amount >= 50
+            && get(/databases/$(database)/documents/amsystemUsers/$(request.auth.uid)).data.frozen == false;
+        }
+    
+        function affOwnerCanUpdateWithdraw() {
+          return affSignedIn()
+            && request.auth.uid == resource.data.userId
+            && request.resource.data.userId == resource.data.userId
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.amount == resource.data.amount
+            && request.resource.data.source == resource.data.source;
+        }
+    
+        function affOwnerCanCreateInvite(code) {
+          return affSignedIn()
+            && request.auth.uid == request.resource.data.userId
+            && request.resource.data.id == code
+            && request.resource.data.code == code;
+        }
+    
+        function affOwnerCanUpdateInvite(code) {
+          return affOwnerCanCreateInvite(code)
+            && request.auth.uid == resource.data.userId;
+        }
+    
+        function affOwnerCanCreateReferral() {
+          return affSignedIn()
+            && request.auth.uid == request.resource.data.inviteeId
+            && request.resource.data.referrerId != request.resource.data.inviteeId;
+        }
+    
+        function affOwnerCanUpdateReferral() {
+          return affSignedIn()
+            && request.auth.uid == resource.data.inviteeId
+            && request.resource.data.referrerId == resource.data.referrerId
+            && request.resource.data.inviteeId == resource.data.inviteeId;
+        }
+    
+        match /amsystem/{docId} {
+          allow read: if affSignedIn();
+          allow write: if affIsAdmin();
+        }
+    
+        match /amsystemUsers/{userId} {
+          allow read: if affIsAdmin() || affIsOwner(userId);
+          allow create: if affIsAdmin() || affUserCreateIsSafe(userId);
+          allow update: if affIsAdmin() || affUserUpdateIsSafe(userId);
+          allow delete: if affIsAdmin();
+        }
+    
+        match /amsystemOrders/{orderId} {
+          allow read: if affIsAdmin() || (affSignedIn() && request.auth.uid == resource.data.userId);
+          allow create: if affIsAdmin() || affOwnerCanCreateOrder();
+          allow update: if affIsAdmin() || affOwnerCanUpdateOrder();
+          allow delete: if affIsAdmin();
+        }
+    
+        match /amsystemExternalOrders/{externalOrderId} {
+          allow read: if affIsAdmin()
+            || (affSignedIn() && request.auth.uid == resource.data.userId);
+          allow write: if affIsAdmin();
+        }
+    
+        match /amsystemReversalCases/{caseId} {
+          allow read, write: if affIsAdmin();
+        }
+    
+        match /amsystemWithdraws/{withdrawId} {
+          allow read: if affIsAdmin() || (affSignedIn() && request.auth.uid == resource.data.userId);
+          allow create: if affIsAdmin() || affOwnerCanCreateWithdraw();
+          allow update: if affIsAdmin() || affOwnerCanUpdateWithdraw();
+          allow delete: if affIsAdmin();
+        }
+    
+        match /amsystemInviteCodes/{code} {
+          allow read: if affSignedIn();
+          allow create: if affIsAdmin() || affOwnerCanCreateInvite(code);
+          allow update: if affIsAdmin() || affOwnerCanUpdateInvite(code);
+          allow delete: if affIsAdmin();
+        }
+    
+        match /amsystemReferrals/{referralId} {
+          allow read: if affIsAdmin()
+            || (affSignedIn() && request.auth.uid == resource.data.referrerId)
+            || (affSignedIn() && request.auth.uid == resource.data.inviteeId);
+          allow create: if affIsAdmin() || affOwnerCanCreateReferral();
+          allow update: if affIsAdmin() || affOwnerCanUpdateReferral();
+          allow delete: if affIsAdmin()
+            || (affSignedIn() && request.auth.uid == resource.data.inviteeId);
+        }
+    
+        match /amsystemRewards/{rewardId} {
+          allow read: if affIsAdmin() || (affSignedIn() && request.auth.uid == resource.data.userId);
+          allow write: if affIsAdmin();
+        }
+    
+        match /amsystemPointLogs/{logId} {
+          allow read: if affIsAdmin() || (affSignedIn() && request.auth.uid == resource.data.userId);
+          allow write: if affIsAdmin();
+        }
+    
+        match /amsystemRepeatCreditLogs/{logId} {
+          allow read: if affIsAdmin() || (affSignedIn() && request.auth.uid == resource.data.userId);
+          allow write: if affIsAdmin();
+        }
+    
+        match /amsystemAdminLogs/{logId} {
+          allow read, write: if affIsAdmin();
+        }
+
+        match /affiliateAgreements/{agreementId} {
+          allow read: if affIsAdmin() || affIsOwner(resource.data.userId);
+          allow create, update: if affSignedIn()
+            && agreementId == request.auth.uid
+            && request.resource.data.id == agreementId
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.status == "submitted"
+            && request.resource.data.agreementType == "marketing-affiliate"
+            && request.resource.data.source == "affiliate-online-agreement"
+            && request.resource.data.confirmations.adultAndTrueInfo == true
+            && request.resource.data.confirmations.agreementRead == true
+            && request.resource.data.confirmations.relationshipDisclosure == true
+            && request.resource.data.confirmations.noMedicalOrGuaranteedClaims == true
+            && request.resource.data.confirmations.pdpaConsent == true
+            && request.resource.data.confirmations.ownDecision == true
+            && request.resource.data.member.name is string
+            && request.resource.data.member.name.size() > 0
+            && request.resource.data.member.mobile is string
+            && request.resource.data.member.mobile.size() > 0
+            && request.resource.data.member.email is string
+            && request.resource.data.member.email.size() > 0;
+          allow delete: if affIsAdmin();
+        }
+
+        match /websiteTermsAcceptances/{acceptanceId} {
+          allow read: if affIsAdmin()
+            || (affSignedIn() && acceptanceId == request.auth.uid);
+          allow create, update: if affSignedIn()
+            && acceptanceId == request.auth.uid
+            && request.resource.data.id == acceptanceId
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.status == "accepted"
+            && request.resource.data.termsType == "website-terms"
+            && request.resource.data.source == "affiliate-first-login"
+            && request.resource.data.termsVersion is string
+            && request.resource.data.confirmations.termsRead == true
+            && request.resource.data.confirmations.healthNotice == true
+            && request.resource.data.confirmations.electronicRecord == true
+            && request.resource.data.confirmations.ownDecision == true
+            && request.resource.data.memberName is string
+            && request.resource.data.memberName.size() > 0
+            && request.resource.data.typedSignature is string
+            && request.resource.data.typedSignature.size() > 0;
+          allow delete: if affIsAdmin();
+        }
+  }
+}

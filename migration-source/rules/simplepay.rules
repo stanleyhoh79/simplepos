@@ -1,0 +1,241 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownerEmail() {
+      return "stanleyhoh79@gmail.com";
+    }
+
+    function isOwner() {
+      return signedIn() && request.auth.token.email == ownerEmail();
+    }
+
+    function isAdmin() {
+      return isOwner()
+        || (
+          signedIn()
+          && exists(/databases/$(database)/documents/adminUsers/$(request.auth.token.email))
+          && get(/databases/$(database)/documents/adminUsers/$(request.auth.token.email)).data.enabled != false
+        );
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function secureMoneyEnabled() {
+      return exists(/databases/$(database)/documents/systemConfig/main)
+        && get(/databases/$(database)/documents/systemConfig/main).data.secureMoneyFunctionsEnabled == true;
+    }
+
+    function walletProfileUpdateIsSafe() {
+      return request.resource.data.balance == resource.data.balance
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.dailyUsage == resource.data.dailyUsage
+        && request.resource.data.transactions == resource.data.transactions
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "email",
+          "displayName",
+          "receiveCode",
+          "role",
+          "kycStatus",
+          "kycFullName",
+          "kycIdNumber",
+          "kycPhone",
+          "updatedAt"
+        ]);
+    }
+
+    function merchantProfileUpdateIsSafe() {
+      return request.resource.data.status == resource.data.status
+        && request.resource.data.totalReceived == resource.data.totalReceived
+        && request.resource.data.settlementBalance == resource.data.settlementBalance
+        && request.resource.data.refundTotal == resource.data.refundTotal
+        && request.resource.data.orders == resource.data.orders
+        && request.resource.data.refunds == resource.data.refunds
+        && request.resource.data.settlements == resource.data.settlements
+        && request.resource.data.transactions == resource.data.transactions
+        && request.resource.data.notifications == resource.data.notifications
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "email",
+          "displayName",
+          "businessName",
+          "contactName",
+          "contactPhone",
+          "businessAddress",
+          "settlementBank",
+          "settlementAccount",
+          "merchantCode",
+          "updatedAt"
+        ]);
+    }
+
+    match /wallets/{userId} {
+      allow read: if isAdmin() || isSelf(userId);
+      allow create: if isAdmin()
+        || (
+          isSelf(userId)
+          && request.resource.data.balance == 0
+          && request.resource.data.status == "active"
+        );
+      allow update: if isAdmin()
+        || (
+          isSelf(userId)
+          && (
+            !secureMoneyEnabled()
+            || walletProfileUpdateIsSafe()
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /merchants/{merchantId} {
+      allow read: if isAdmin() || isSelf(merchantId);
+      allow create: if isAdmin()
+        || (
+          isSelf(merchantId)
+          && request.resource.data.status == "pending"
+          && request.resource.data.totalReceived == 0
+          && request.resource.data.settlementBalance == 0
+          && request.resource.data.refundTotal == 0
+        );
+      allow update: if isAdmin()
+        || (
+          isSelf(merchantId)
+          && (
+            !secureMoneyEnabled()
+            || merchantProfileUpdateIsSafe()
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /merchantOrders/{orderId} {
+      allow read: if isAdmin()
+        || (
+          signedIn()
+          && (
+            resource.data.customerId == request.auth.uid
+            || resource.data.merchantId == request.auth.uid
+          )
+        );
+      allow write: if false;
+    }
+
+    match /merchantRefundIntents/{intentId} {
+      allow read: if isAdmin()
+        || (
+          signedIn()
+          && resource.data.merchantId == request.auth.uid
+        );
+      allow write: if false;
+    }
+
+    match /rechargeRequests/{requestId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn()
+        && !secureMoneyEnabled()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == "pending";
+      allow update: if isAdmin() && !secureMoneyEnabled();
+      allow delete: if isAdmin();
+    }
+
+    match /withdrawRequests/{requestId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn()
+        && !secureMoneyEnabled()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == "pending";
+      allow update: if isAdmin() && !secureMoneyEnabled();
+      allow delete: if isAdmin();
+    }
+
+    match /refundRequests/{requestId} {
+      allow read: if isAdmin()
+        || (
+          signedIn()
+          && (
+            resource.data.customerId == request.auth.uid
+            || resource.data.merchantId == request.auth.uid
+          )
+        );
+      allow create: if signedIn()
+        && !secureMoneyEnabled()
+        && request.resource.data.merchantId == request.auth.uid;
+      allow update: if isAdmin() && !secureMoneyEnabled();
+      allow delete: if isAdmin();
+    }
+
+    match /settlementRequests/{requestId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.merchantId == request.auth.uid);
+      allow create: if signedIn()
+        && !secureMoneyEnabled()
+        && request.resource.data.merchantId == request.auth.uid;
+      allow update: if isAdmin() && !secureMoneyEnabled();
+      allow delete: if isAdmin();
+    }
+
+    match /kycRequests/{requestId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /supportTickets/{ticketId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.accountId == request.auth.uid);
+      allow create: if signedIn()
+        && !secureMoneyEnabled()
+        && request.resource.data.accountId == request.auth.uid;
+      allow update: if isAdmin() && !secureMoneyEnabled();
+      allow delete: if isAdmin();
+    }
+
+    match /marketingItems/{itemId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /payAuditLogs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /adminUsers/{email} {
+      allow read: if signedIn() && (request.auth.token.email == email || isAdmin());
+      allow write: if isOwner();
+    }
+
+    match /systemConfig/{configId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /paymentIntents/{intentId} {
+      allow get: if resource.data.amountPoints > 0
+        && resource.data.merchantId is string
+        && resource.data.branchId is string
+        && (
+          !("customer" in resource.data)
+          || (
+            resource.data.customer.name == ""
+            && resource.data.customer.phone == ""
+          )
+        );
+      allow list, create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

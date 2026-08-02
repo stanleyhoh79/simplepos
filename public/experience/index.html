@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>极简养生计划体验版 | 极简养生系统</title>
+  <script>
+    if (new URLSearchParams(location.search).get("embed") === "1") {
+      document.documentElement.classList.add("is-embedded");
+    }
+  </script>
+  <style>
+    :root { color-scheme: light; font-family: Arial, "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #071f1b; background: #f7fbf9; }
+    .page { width: min(980px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0 72px; }
+    .eyebrow { margin: 0 0 12px; color: #0f8178; font-weight: 900; letter-spacing: .08em; }
+    h1 { margin: 0; font-size: clamp(38px, 6vw, 70px); line-height: 1.05; }
+    .intro { max-width: 680px; margin: 20px 0 32px; color: #65756f; font-size: clamp(19px, 2.4vw, 26px); line-height: 1.55; }
+    .notice { display: grid; gap: 10px; padding: 26px; border: 1px solid #d8e2de; border-radius: 8px; background: #fff; }
+    .notice strong { font-size: 22px; }
+    .notice p { margin: 0; color: #65756f; font-size: 17px; line-height: 1.65; }
+    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+    .step { padding: 20px; border: 1px solid #d8e2de; border-radius: 8px; background: #eef6f3; }
+    .step span { display: block; color: #0f8178; font-weight: 900; }
+    .step strong { display: block; margin-top: 10px; font-size: 19px; }
+    .step p { margin: 8px 0 0; color: #65756f; line-height: 1.55; }
+    .experience-card { display: grid; gap: 18px; margin-top: 28px; padding: 28px; border: 1px solid #d8e2de; border-radius: 8px; background: #fff; }
+    .experience-card h2 { margin: 0; font-size: clamp(25px, 4vw, 38px); }
+    .experience-card p { margin: 0; color: #65756f; font-size: 17px; line-height: 1.65; }
+    .status-line { padding: 14px 16px; border-radius: 6px; background: #eef6f3; color: #0f8178; font-weight: 800; }
+    .action-row { display: flex; flex-wrap: wrap; gap: 12px; }
+    button { min-height: 50px; padding: 0 20px; border: 1px solid #d8e2de; border-radius: 7px; background: #fff; color: #071f1b; font: inherit; font-weight: 900; cursor: pointer; }
+    button.primary { border-color: #0f8178; background: #0f8178; color: #fff; }
+    button.danger { color: #a33528; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .choice-box { display: grid; gap: 12px; padding-top: 4px; }
+    .choice-box[hidden] { display: none; }
+    .choice-box label { display: flex; gap: 10px; align-items: flex-start; color: #40504a; line-height: 1.45; }
+    .choice-box input { margin-top: 4px; }
+    .small-note { font-size: 14px !important; }
+    @media (max-width: 680px) { .page { width: min(100% - 28px, 980px); padding-top: 30px; } .steps { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <p class="eyebrow">极简养生 · 新会员体验</p>
+    <h1>极简养生计划体验版</h1>
+    <p class="intro">先用最简单的方式认识计划。体验内容与操作步骤会在这里逐步开放，无需额外填写资料。</p>
+
+    <section class="notice">
+      <strong>体验版正在准备中</strong>
+      <p>你已经进入体验入口。之后会在这里安排新会员说明、体验任务与下一步指引；已开放的每日打卡、每周测量和个人资料仍可从左侧直接进入。</p>
+    </section>
+
+    <section class="steps" aria-label="体验流程预览">
+      <article class="step"><span>01</span><strong>认识计划</strong><p>了解体验版的节奏与适用方式。</p></article>
+      <article class="step"><span>02</span><strong>准备开始</strong><p>由会员自行确认准备好后再启动正式计划。</p></article>
+      <article class="step"><span>03</span><strong>记录变化</strong><p>开始后再使用每日打卡与每周测量观察进度。</p></article>
+    </section>
+
+    <section class="experience-card" aria-live="polite">
+      <p class="eyebrow">MEMBER EXPERIENCE</p>
+      <h2 id="experienceTitle">准备开始体验</h2>
+      <p id="experienceDescription">先用体验版认识日常打卡、每周测量和个人资料。准备好时由你自己开始，不会自动启动正式计划。</p>
+      <div class="status-line" id="experienceStatus">正在检查体验资格...</div>
+      <div class="action-row" id="experienceActions">
+        <button class="primary" id="startExperienceButton" type="button">开始体验</button>
+        <button id="completeExperienceButton" type="button" hidden>我已完成体验</button>
+      </div>
+      <div class="choice-box" id="completionChoices" hidden>
+        <p>体验结束后，你可以选择正式加入并激活简单联盟，或提交退款申请。未选择前，简单联盟会保持不可用。</p>
+        <label><input id="waiveRefundCheck" type="checkbox">我确认正式加入，并自愿放弃本体验阶段的退款权益。</label>
+        <div class="action-row">
+          <button class="primary" id="activateAffiliateButton" type="button">正式加入并激活简单联盟</button>
+          <button class="danger" id="requestRefundButton" type="button">申请退款</button>
+        </div>
+        <p class="small-note">退款申请会交由工作人员按实际订单和适用政策处理。</p>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="./script.js?v=2"></script>
+</body>
+</html>

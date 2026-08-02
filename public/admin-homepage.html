@@ -1,0 +1,1299 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <title>网页设置 | 简单系统</title>
+  <style>
+    :root {
+      --brand: #0f766e;
+      --brand-dark: #0b5d57;
+      --line: #d8e3df;
+      --bg: #f5faf8;
+      --text: #071d1a;
+      --muted: #66756f;
+      --soft: #eef7f4;
+      --paper: #ffffff;
+      --danger: #b42318;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 16% 6%, rgba(15, 118, 110, .12), transparent 28%),
+        linear-gradient(180deg, #f8fcfb 0%, #ffffff 100%);
+    }
+
+    main {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: 28px clamp(14px, 3vw, 32px) 44px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 25px;
+      line-height: 1;
+    }
+
+    h1,
+    h2,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(38px, 7vw, 72px);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .hero {
+      display: grid;
+      gap: 10px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 10px 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .button.primary {
+      border-color: var(--brand);
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .auth-panel,
+    .settings-panel,
+    .preview-panel {
+      margin-top: 18px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+    }
+
+    .auth-panel {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .auth-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .settings-panel {
+      display: grid;
+      gap: 14px;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--text);
+      font-weight: 900;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      font: inherit;
+      font-weight: 700;
+      background: #fff;
+    }
+
+    textarea {
+      min-height: 108px;
+      resize: vertical;
+    }
+
+    #settingMethodText,
+    #settingLimitText,
+    #settingDeployText {
+      min-height: 240px;
+    }
+
+    .submenu-article-editors {
+      display: grid;
+      gap: 14px;
+      padding-top: 6px;
+    }
+
+    .submenu-article-editor {
+      display: grid;
+      gap: 10px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .submenu-article-editor h3,
+    .submenu-article-editor p {
+      margin: 0;
+    }
+
+    .submenu-article-editor p {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .submenu-article-editor textarea {
+      min-height: 220px;
+    }
+
+    .navigation-editor {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .inline-action {
+      display: flex;
+      gap: 8px;
+    }
+
+    .inline-action input {
+      min-width: 0;
+    }
+
+    .inline-action .button {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .navigation-editor-hint {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .submenu-source-store {
+      display: none;
+    }
+
+    .homepage-setting-section {
+      display: grid;
+      gap: 14px;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--line);
+    }
+
+    .settings-group {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfefd;
+      overflow: hidden;
+    }
+
+    .settings-group summary {
+      min-height: 58px;
+      padding: 14px 16px;
+      cursor: pointer;
+      color: var(--text);
+      font-size: 20px;
+      font-weight: 900;
+      list-style-position: inside;
+    }
+
+    .settings-group-body {
+      display: grid;
+      gap: 14px;
+      padding: 0 16px 16px;
+    }
+
+    .check-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 48px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfefd;
+      font-weight: 900;
+    }
+
+    .check-row input {
+      width: 20px;
+      height: 20px;
+    }
+
+    .form-status {
+      min-height: 24px;
+      color: var(--muted);
+      font-weight: 900;
+    }
+
+    .form-status.error {
+      color: var(--danger);
+    }
+
+    .preview-panel {
+      display: grid;
+      gap: 26px;
+      background: #fff;
+    }
+
+    .preview-title {
+      font-size: clamp(34px, 6vw, 64px);
+      font-weight: 900;
+      line-height: 1;
+      text-align: center;
+    }
+
+    .preview-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .preview-nav {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      font-weight: 900;
+    }
+
+    .preview-hero {
+      display: grid;
+      justify-items: center;
+      gap: 12px;
+      min-height: 360px;
+      padding: 44px 12px 72px;
+      border-bottom: 1px solid var(--line);
+      text-align: center;
+    }
+
+    .preview-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-right: 10px;
+      font-size: 20px;
+    }
+
+    .preview-logo {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .brand-logo-settings {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+    }
+
+    .brand-logo-preview {
+      width: 64px;
+      height: 64px;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      border-radius: 8px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 34px;
+      font-weight: 900;
+    }
+
+    .brand-logo-preview img,
+    .preview-logo img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    .brand-logo-preview img[hidden],
+    .preview-logo img[hidden] {
+      display: none !important;
+    }
+
+    .logo-controls {
+      display: grid;
+      gap: 8px;
+    }
+
+    .logo-controls input[type="file"] {
+      max-width: 100%;
+      color: var(--muted);
+      font: inherit;
+    }
+
+    .preview-article {
+      display: grid;
+      grid-template-columns: minmax(120px, 220px) minmax(0, 1fr);
+      gap: clamp(24px, 6vw, 90px);
+      padding: 28px 0 48px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .preview-article-nav {
+      display: grid;
+      align-self: start;
+      gap: 14px;
+    }
+
+    .preview-article-nav button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 18px;
+      font-weight: 900;
+      text-align: left;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .preview-article-nav button.is-active {
+      color: var(--text);
+    }
+
+    .preview-article-copy {
+      color: #000;
+      font-size: clamp(22px, 3vw, 34px);
+      line-height: 1.48;
+      white-space: pre-line;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 760px) {
+      .auth-panel {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .settings-grid,
+      .check-grid,
+      .preview-article {
+        grid-template-columns: 1fr;
+      }
+
+      .inline-action {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topbar">
+      <a class="brand" href="./index.html">
+        <span class="brand-mark">简</span>
+        <span>极简养生</span>
+      </a>
+      <a class="button" href="./index.html">返回首页</a>
+    </div>
+
+    <section class="hero">
+      <h1>网页设置</h1>
+      <p>管理员可调整首页文案和入口显示。保存后会同步到云端。</p>
+    </section>
+
+    <section class="auth-panel">
+      <div>
+        <strong>管理员验证</strong>
+        <p id="authStatus">正在检查登录状态...</p>
+      </div>
+      <div class="auth-actions">
+        <button class="button primary" id="loginBtn" type="button">管理员登录</button>
+        <button class="button hidden" id="logoutBtn" type="button">退出登录</button>
+      </div>
+    </section>
+
+    <form class="settings-panel hidden" id="homepageSettingsForm">
+      <details class="settings-group">
+        <summary>导航设置</summary>
+        <div class="settings-group-body">
+          <div class="settings-grid">
+            <label>
+              品牌文字
+              <input id="settingBrandText" type="text" maxlength="12" placeholder="例如：极简养生">
+            </label>
+            <label>
+              右侧登录按钮
+              <input id="settingNavLogin" type="text" maxlength="8" placeholder="例如：登录">
+            </label>
+          </div>
+          <div class="brand-logo-settings">
+            <div class="brand-logo-preview"><img id="settingBrandLogoPreview" alt="品牌图标预览" hidden><span id="settingBrandLogoFallback">简</span></div>
+            <div class="logo-controls">
+              <label>
+                左上角品牌图标（可选）
+                <input id="settingBrandLogo" type="file" accept="image/png,image/jpeg,image/webp">
+              </label>
+              <span>建议上传正方形 PNG、JPG 或 WebP，系统会自动压缩以节省储存空间。</span>
+              <button class="button" id="clearBrandLogoBtn" type="button">恢复默认图标</button>
+            </div>
+          </div>
+          <div class="navigation-editor">
+            <div class="settings-grid">
+              <label>
+                选择导航
+                <select id="navGroupSelect"></select>
+              </label>
+              <label>
+                导航名称
+                <input id="settingSelectedNavLabel" type="text" maxlength="8" placeholder="例如：研究">
+              </label>
+            </div>
+            <div class="settings-grid">
+              <label>
+                选择子导航
+                <select id="submenuSelect"></select>
+              </label>
+              <label>
+                新增子导航
+                <span class="inline-action"><input id="newSubmenuLabel" type="text" maxlength="40" placeholder="输入子导航名称"><button class="button primary" id="addSubmenuBtn" type="button">新增子导航</button></span>
+              </label>
+            </div>
+            <p class="navigation-editor-hint">先选择导航，再选择需要编辑的子导航；保存后会自动同步首页下拉菜单和底部网站地图。</p>
+            <div class="submenu-article-editors" id="submenuArticleEditors"></div>
+          </div>
+          <div class="submenu-source-store" aria-hidden="true">
+            <textarea class="submenu-source" id="settingSubmenuResearch"></textarea>
+            <textarea class="submenu-source" id="settingSubmenuProducts"></textarea>
+            <textarea class="submenu-source" id="settingSubmenuBusiness"></textarea>
+            <textarea class="submenu-source" id="settingSubmenuDevelopers"></textarea>
+            <textarea class="submenu-source" id="settingSubmenuCompany"></textarea>
+            <input id="settingNavResearch" type="hidden">
+            <input id="settingNavProducts" type="hidden">
+            <input id="settingNavBusiness" type="hidden">
+            <input id="settingNavDevelopers" type="hidden">
+            <input id="settingNavCompany" type="hidden">
+          </div>
+        </div>
+      </details>
+
+      <details class="settings-group" open>
+        <summary>首页内容设置</summary>
+        <div class="settings-group-body">
+          <label>
+            选择要编辑的首页区块
+            <select id="homepageContentSelect">
+              <option value="hero">首页主视觉</option>
+              <option value="method" id="homepageSectionMethodOption">第一段文章</option>
+              <option value="limit" id="homepageSectionLimitOption">第二段文章</option>
+              <option value="deploy" id="homepageSectionDeployOption">第三段文章</option>
+              <option value="typography">字体设置</option>
+            </select>
+          </label>
+          <p class="navigation-editor-hint">选择文章后，可编辑首页左侧目录标题和右侧完整内容。</p>
+          <div class="homepage-setting-section" data-homepage-section="hero">
+            <div class="settings-grid">
+              <label>顶部小标签<input id="settingEyebrow" type="text" maxlength="46" placeholder="例如：SIMPLE SYSTEM · UNIFIED PORTAL"></label>
+              <label>日期 / 年份<input id="settingMetaDate" type="text" maxlength="16" placeholder="例如：2026"></label>
+            </div>
+            <div class="settings-grid">
+              <label>分类<input id="settingMetaCategory" type="text" maxlength="18" placeholder="例如：Product"></label>
+              <label>首页大标题<input id="settingTitle" type="text" maxlength="34" placeholder="例如：简单系统"></label>
+            </div>
+            <label>主按钮文字<input id="settingPrimaryCta" type="text" maxlength="12" placeholder="例如：开始使用"></label>
+            <label>首页说明<textarea id="settingSubtitle" maxlength="120" placeholder="一句话说明这个系统。"></textarea></label>
+          </div>
+          <div class="homepage-setting-section hidden" data-homepage-section="method">
+            <label>第一段标题<input id="settingMethodTitle" type="text" maxlength="24" placeholder="例如：系统方法"></label>
+            <label>第一段说明（最多 5000 字）<textarea id="settingMethodText" maxlength="5000" placeholder="说明系统方法。"></textarea></label>
+          </div>
+          <div class="homepage-setting-section hidden" data-homepage-section="limit">
+            <label>第二段标题<input id="settingLimitTitle" type="text" maxlength="24" placeholder="例如：权限边界"></label>
+            <label>第二段说明（最多 5000 字）<textarea id="settingLimitText" maxlength="5000" placeholder="说明权限和使用边界。"></textarea></label>
+          </div>
+          <div class="homepage-setting-section hidden" data-homepage-section="deploy">
+            <label>第三段标题<input id="settingDeployTitle" type="text" maxlength="24" placeholder="例如：持续完善"></label>
+            <label>第三段说明（最多 5000 字）<textarea id="settingDeployText" maxlength="5000" placeholder="说明后续完善方向。"></textarea></label>
+          </div>
+          <div class="homepage-setting-section hidden" data-homepage-section="typography">
+            <div class="settings-grid">
+              <label>首页大标题字体（56-116）<input id="settingTitleFontSize" type="number" min="56" max="116" step="2" placeholder="例如：96"></label>
+              <label>首页说明字体（18-42）<input id="settingSubtitleFontSize" type="number" min="18" max="42" step="1" placeholder="例如：30"></label>
+            </div>
+            <label>正文说明字体（18-42）<input id="settingBodyFontSize" type="number" min="18" max="42" step="1" placeholder="例如：30"></label>
+          </div>
+        </div>
+      </details>
+      <div class="auth-actions">
+        <button class="button primary" type="submit">保存网页设置</button>
+        <button class="button" id="resetHomepageSettingsBtn" type="button">恢复默认</button>
+      </div>
+      <p class="form-status" id="homepageSettingsStatus"></p>
+    </form>
+
+    <section class="preview-panel hidden" id="previewPanel">
+      <p>首页预览</p>
+      <div class="preview-nav">
+        <span class="preview-brand"><span class="preview-logo"><img id="previewBrandLogo" alt="" hidden><span id="previewBrandFallback">简</span></span><span id="previewBrandText">极简养生</span></span>
+        <span id="previewNavResearch">研究</span>
+        <span id="previewNavProducts">产品</span>
+        <span id="previewNavBusiness">商业</span>
+        <span id="previewNavDevelopers">开发</span>
+        <span id="previewNavCompany">公司</span>
+        <span class="button" id="previewNavLogin">登录</span>
+        <span class="button primary" id="previewNavStart">开始使用</span>
+      </div>
+      <div class="preview-hero">
+        <p id="previewEyebrow">SIMPLE SYSTEM · UNIFIED PORTAL</p>
+        <p><span id="previewMetaDate">2026</span> · <span id="previewMetaCategory">Product</span></p>
+        <div class="preview-title" id="previewTitle">简单系统</div>
+        <p id="previewSubtitle">一个账号进入 POS、支付、会员资料和联盟推荐。游客只看概览；登录后才使用功能。</p>
+        <div class="preview-actions">
+          <span class="button primary" id="previewPrimaryCta">开始使用</span>
+        </div>
+      </div>
+      <div class="preview-article">
+        <div class="preview-article-nav" aria-label="预览文章目录">
+          <button class="is-active" type="button" data-preview-article="method" id="previewMethodTitle">系统方法</button>
+          <button type="button" data-preview-article="limit" id="previewLimitTitle">权限边界</button>
+          <button type="button" data-preview-article="deploy" id="previewDeployTitle">持续完善</button>
+        </div>
+        <p class="preview-article-copy" id="previewArticleText">简单系统把门店收银、顾客资料、付款与推荐关系放进同一个登录入口。</p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getAuth,
+      browserLocalPersistence,
+      GoogleAuthProvider,
+      onAuthStateChanged,
+      signInWithPopup,
+      signOut,
+      setPersistence
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import {
+      doc,
+      getDoc,
+      getFirestore,
+      serverTimestamp,
+      setDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    let configModule;
+    try {
+      configModule = await import("./shared/firebase-config.local.js");
+    } catch {
+      configModule = await import("./shared/firebase-config.js");
+    }
+
+    const app = initializeApp(configModule.firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    await setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    const adminEmail = String(configModule.adminEmail || "").trim().toLowerCase();
+    const homepageSettingsRef = doc(db, "portalSettings", "homepage");
+    const loginBtn = document.querySelector("#loginBtn");
+    const logoutBtn = document.querySelector("#logoutBtn");
+    const authStatus = document.querySelector("#authStatus");
+    const form = document.querySelector("#homepageSettingsForm");
+    const statusLine = document.querySelector("#homepageSettingsStatus");
+    const resetBtn = document.querySelector("#resetHomepageSettingsBtn");
+    const previewPanel = document.querySelector("#previewPanel");
+    const previewArticleTabs = [...document.querySelectorAll("[data-preview-article]")];
+    const previewArticleText = document.querySelector("#previewArticleText");
+    let activePreviewArticle = "method";
+    const homepageSettingsCacheKey = "simplepos-homepage-settings";
+    const defaultSettings = {
+      title: "极简养生系统 · 简介",
+      brandText: "极简养生",
+      logoDataUrl: "",
+      navResearch: "研究",
+      navProducts: "产品",
+      navBusiness: "商业",
+      navDevelopers: "开发",
+      navCompany: "公司",
+      navLogin: "登录",
+      navSubmenus: {
+        research: ["养生研究", "健康档案", "案例记录"],
+        products: ["简单POS", "SimplePay", "会员中心", "简单联盟"],
+        business: ["分行管理", "商家收款", "区域授权"],
+        developers: ["系统整合", "数据同步", "权限规则"],
+        company: ["关于极简养生", "条款与隐私", "联系我们"]
+      },
+      navArticles: {},
+      subtitle: "极简养生系统，协助你拥抱 有钱有闲有健康 的生活。",
+      eyebrow: "极简养生 · 为更好的明天",
+      metaDate: "2026",
+      metaCategory: "Product",
+      primaryCta: "开始使用",
+      titleFontSize: 96,
+      subtitleFontSize: 30,
+      bodyFontSize: 30,
+      methodTitle: "系统方法",
+      methodText: "简单系统把门店收银、顾客资料、付款与推荐关系放进同一个登录入口。会员只填写一次资料，员工只进入授权功能，管理员集中处理审核与设置。",
+      limitTitle: "权限边界",
+      limitText: "游客只能概览。普通会员和员工只能使用自己的资料与授权分行。管理员拥有后台入口，用于总览、审核、网页设置和关键系统管理。",
+      deployTitle: "持续完善",
+      deployText: "系统会先保持轻量、低成本、容易测试。门店真实使用后，再根据收银、付款、会员和联盟流程逐步完善。",
+      visibleEntries: {
+        pos: true,
+        customer: true,
+        simplepay: true,
+        member: true
+      }
+    };
+    let currentSettings = structuredClone(defaultSettings);
+    let pendingLogoDataUrl = "";
+    let pendingSubmenuArticles = {};
+    let activeNavGroup = "research";
+    let activeSubmenuLabel = "";
+    let activeHomepageSection = "hero";
+
+    const navGroupFields = {
+      research: "#settingNavResearch",
+      products: "#settingNavProducts",
+      business: "#settingNavBusiness",
+      developers: "#settingNavDevelopers",
+      company: "#settingNavCompany"
+    };
+
+    function isAdminUser(user) {
+      return Boolean(user?.email && user.email.trim().toLowerCase() === adminEmail);
+    }
+
+    function cleanText(value, fallback, maxLength) {
+      const text = String(value || "").replace(/\s+/g, " ").trim();
+      return (text || fallback).slice(0, maxLength);
+    }
+
+    function cleanLongText(value, fallback, maxLength) {
+      const text = String(value || "")
+        .replace(/\r\n/g, "\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      return (text || fallback).slice(0, maxLength);
+    }
+
+    function cleanList(value, fallback) {
+      const source = Array.isArray(value) ? value : String(value || "").split(/\r?\n/);
+      const items = source
+        .map((item) => cleanText(item, "", 22))
+        .filter(Boolean)
+        .slice(0, 6);
+      return items.length ? items : fallback;
+    }
+
+    function cleanNumber(value, fallback, min, max) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return fallback;
+      return Math.min(max, Math.max(min, Math.round(number)));
+    }
+
+    function cleanLogoDataUrl(value) {
+      const dataUrl = String(value || "").trim();
+      return /^data:image\/(?:png|jpe?g|webp);base64,[a-z0-9+/=\s]+$/i.test(dataUrl) && dataUrl.length <= 360000
+        ? dataUrl
+        : "";
+    }
+
+    async function shrinkLogo(file) {
+      if (!file || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+        throw new Error("请选择 PNG、JPG 或 WebP 图片。");
+      }
+      if (file.size > 4 * 1024 * 1024) throw new Error("图片请控制在 4 MB 以内。");
+      const source = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("图片无法读取。"));
+        image.src = URL.createObjectURL(file);
+      });
+      const edge = Math.min(192, Math.max(source.naturalWidth, source.naturalHeight));
+      const scale = edge / Math.max(source.naturalWidth, source.naturalHeight);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(source.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(source.naturalHeight * scale));
+      canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", .82));
+      if (!blob) throw new Error("图片压缩失败，请换一张图片重试。");
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("图片读取失败。"));
+        reader.readAsDataURL(blob);
+      });
+      const cleaned = cleanLogoDataUrl(dataUrl);
+      if (!cleaned) throw new Error("图片压缩后仍然过大，请换一张简单的图片。" );
+      return cleaned;
+    }
+
+    function listToTextarea(items) {
+      return (Array.isArray(items) ? items : []).join("\n");
+    }
+
+    function defaultSubmenuArticle(label) {
+      return `${label}\n\n\u8bf7\u5728\u8fd9\u91cc\u8f93\u5165\u5b50\u5bfc\u822a\u5bf9\u5e94\u7684\u5b8c\u6574\u6587\u7ae0\u3002`;
+    }
+
+    function cleanSubmenuArticle(value, fallback) {
+      const text = String(value || "")
+        .replace(/\r\n/g, "\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      return (text || fallback).slice(0, 3500);
+    }
+
+    function readNavSubmenusFromForm() {
+      return {
+        research: cleanList(document.querySelector("#settingSubmenuResearch").value, defaultSettings.navSubmenus.research),
+        products: cleanList(document.querySelector("#settingSubmenuProducts").value, defaultSettings.navSubmenus.products),
+        business: cleanList(document.querySelector("#settingSubmenuBusiness").value, defaultSettings.navSubmenus.business),
+        developers: cleanList(document.querySelector("#settingSubmenuDevelopers").value, defaultSettings.navSubmenus.developers),
+        company: cleanList(document.querySelector("#settingSubmenuCompany").value, defaultSettings.navSubmenus.company)
+      };
+    }
+
+    function collectSubmenuArticles(navSubmenus) {
+      const typed = {};
+      document.querySelectorAll(".submenu-article-text").forEach((input) => {
+        const group = input.dataset.group;
+        const label = input.dataset.label;
+        if (!group || !label) return;
+        typed[group] ||= {};
+        typed[group][label] = input.value;
+      });
+      return Object.fromEntries(Object.entries(navSubmenus).map(([group, labels]) => [
+        group,
+        Object.fromEntries(labels.map((label) => [
+          label,
+          cleanSubmenuArticle(
+            typed[group]?.[label] ?? pendingSubmenuArticles[group]?.[label],
+            defaultSubmenuArticle(label)
+          )
+        ]))
+      ]));
+    }
+
+    function getNavGroupLabel(group) {
+      return document.querySelector(navGroupFields[group])?.value || group;
+    }
+
+    function renderSubmenuArticleEditors() {
+      const navSubmenus = readNavSubmenusFromForm();
+      pendingSubmenuArticles = collectSubmenuArticles(navSubmenus);
+      const container = document.querySelector("#submenuArticleEditors");
+      container.innerHTML = "";
+      if (!activeSubmenuLabel) {
+        container.innerHTML = "<p>请选择一个子导航后再编辑对应文章。</p>";
+        return;
+      }
+      const card = document.createElement("section");
+      card.className = "submenu-article-editor";
+      const title = document.createElement("h3");
+      title.textContent = `${activeSubmenuLabel} 正文`;
+      const hint = document.createElement("p");
+      hint.textContent = "首页点击此子导航后，会显示这篇文章。最多 3,500 字。";
+      const textarea = document.createElement("textarea");
+      textarea.className = "submenu-article-text";
+      textarea.maxLength = 3500;
+      textarea.dataset.group = activeNavGroup;
+      textarea.dataset.label = activeSubmenuLabel;
+      textarea.value = pendingSubmenuArticles[activeNavGroup]?.[activeSubmenuLabel] || defaultSubmenuArticle(activeSubmenuLabel);
+      const remove = document.createElement("button");
+      remove.className = "button";
+      remove.type = "button";
+      remove.textContent = "删除此子导航";
+      remove.addEventListener("click", () => {
+        const items = readNavSubmenusFromForm();
+        items[activeNavGroup] = items[activeNavGroup].filter((item) => item !== activeSubmenuLabel);
+        document.querySelector(`#settingSubmenu${activeNavGroup[0].toUpperCase()}${activeNavGroup.slice(1)}`).value = listToTextarea(items[activeNavGroup]);
+        delete pendingSubmenuArticles[activeNavGroup]?.[activeSubmenuLabel];
+        activeSubmenuLabel = items[activeNavGroup][0] || "";
+        renderNavigationEditor();
+        renderPreview(readFormSettings());
+      });
+      card.append(title, hint, textarea, remove);
+      container.append(card);
+    }
+
+    function renderNavigationEditor() {
+      const navSubmenus = readNavSubmenusFromForm();
+      pendingSubmenuArticles = collectSubmenuArticles(navSubmenus);
+      if (!navSubmenus[activeNavGroup]) activeNavGroup = "research";
+      const groupSelect = document.querySelector("#navGroupSelect");
+      const labelInput = document.querySelector("#settingSelectedNavLabel");
+      const submenuSelect = document.querySelector("#submenuSelect");
+      groupSelect.innerHTML = Object.keys(navGroupFields).map((group) => `<option value="${group}">${getNavGroupLabel(group)}</option>`).join("");
+      groupSelect.value = activeNavGroup;
+      labelInput.value = getNavGroupLabel(activeNavGroup);
+      const labels = navSubmenus[activeNavGroup] || [];
+      if (!labels.includes(activeSubmenuLabel)) activeSubmenuLabel = labels[0] || "";
+      submenuSelect.innerHTML = `<option value="">选择子导航</option>${labels.map((label) => `<option value="${label}">${label}</option>`).join("")}`;
+      submenuSelect.value = activeSubmenuLabel;
+      renderSubmenuArticleEditors();
+    }
+
+    function renderHomepageSectionEditor() {
+      const selector = document.querySelector("#homepageContentSelect");
+      if (!selector) return;
+      selector.value = activeHomepageSection;
+      document.querySelectorAll("[data-homepage-section]").forEach((section) => {
+        section.classList.toggle("hidden", section.dataset.homepageSection !== activeHomepageSection);
+      });
+    }
+
+    function refreshHomepageSectionOptionLabels(settings = null) {
+      const titles = settings || {
+        methodTitle: document.querySelector("#settingMethodTitle")?.value,
+        limitTitle: document.querySelector("#settingLimitTitle")?.value,
+        deployTitle: document.querySelector("#settingDeployTitle")?.value
+      };
+      const options = [
+        ["homepageSectionMethodOption", titles.methodTitle, "第一段文章"],
+        ["homepageSectionLimitOption", titles.limitTitle, "第二段文章"],
+        ["homepageSectionDeployOption", titles.deployTitle, "第三段文章"]
+      ];
+      options.forEach(([id, title, fallback]) => {
+        const option = document.querySelector(`#${id}`);
+        if (option) option.textContent = `文章：${String(title || fallback).trim() || fallback}`;
+      });
+    }
+
+    function normalizeNavArticles(raw, navSubmenus) {
+      const source = raw && typeof raw === "object" ? raw : {};
+      return Object.fromEntries(Object.entries(navSubmenus).map(([group, labels]) => [
+        group,
+        Object.fromEntries(labels.map((label) => [
+          label,
+          cleanSubmenuArticle(source[group]?.[label], defaultSubmenuArticle(label))
+        ]))
+      ]));
+    }
+
+    function normalizeSettings(raw = {}) {
+      const visibleEntries = raw.visibleEntries || {};
+      const navSubmenus = {
+        research: cleanList(raw.navSubmenus?.research, defaultSettings.navSubmenus.research),
+        products: cleanList(raw.navSubmenus?.products, defaultSettings.navSubmenus.products),
+        business: cleanList(raw.navSubmenus?.business, defaultSettings.navSubmenus.business),
+        developers: cleanList(raw.navSubmenus?.developers, defaultSettings.navSubmenus.developers),
+        company: cleanList(raw.navSubmenus?.company, defaultSettings.navSubmenus.company)
+      };
+      return {
+        title: cleanText(raw.title, defaultSettings.title, 34),
+        brandText: cleanText(raw.brandText, defaultSettings.brandText, 12),
+        logoDataUrl: cleanLogoDataUrl(raw.logoDataUrl),
+        navResearch: cleanText(raw.navResearch, defaultSettings.navResearch, 8),
+        navProducts: cleanText(raw.navProducts, defaultSettings.navProducts, 8),
+        navBusiness: cleanText(raw.navBusiness, defaultSettings.navBusiness, 8),
+        navDevelopers: cleanText(raw.navDevelopers, defaultSettings.navDevelopers, 8),
+        navCompany: cleanText(raw.navCompany, defaultSettings.navCompany, 8),
+        navLogin: cleanText(raw.navLogin, defaultSettings.navLogin, 8),
+        navSubmenus,
+        navArticles: normalizeNavArticles(raw.navArticles, navSubmenus),
+        eyebrow: cleanText(raw.eyebrow, defaultSettings.eyebrow, 46),
+        metaDate: cleanText(raw.metaDate, defaultSettings.metaDate, 16),
+        metaCategory: cleanText(raw.metaCategory, defaultSettings.metaCategory, 18),
+        subtitle: cleanText(raw.subtitle, defaultSettings.subtitle, 120),
+        primaryCta: cleanText(raw.primaryCta, defaultSettings.primaryCta, 12),
+        titleFontSize: cleanNumber(raw.titleFontSize, defaultSettings.titleFontSize, 56, 116),
+        subtitleFontSize: cleanNumber(raw.subtitleFontSize, defaultSettings.subtitleFontSize, 18, 42),
+        bodyFontSize: cleanNumber(raw.bodyFontSize, defaultSettings.bodyFontSize, 18, 42),
+        methodTitle: cleanText(raw.methodTitle, defaultSettings.methodTitle, 24),
+        methodText: cleanLongText(raw.methodText, defaultSettings.methodText, 5000),
+        limitTitle: cleanText(raw.limitTitle, defaultSettings.limitTitle, 24),
+        limitText: cleanLongText(raw.limitText, defaultSettings.limitText, 5000),
+        deployTitle: cleanText(raw.deployTitle, defaultSettings.deployTitle, 24),
+        deployText: cleanLongText(raw.deployText, defaultSettings.deployText, 5000),
+        visibleEntries: {
+          pos: visibleEntries.pos !== false,
+          customer: visibleEntries.customer !== false,
+          simplepay: visibleEntries.simplepay !== false,
+          member: visibleEntries.member !== false
+        }
+      };
+    }
+
+    function readFormSettings() {
+      const navSubmenus = readNavSubmenusFromForm();
+      return normalizeSettings({
+        brandText: document.querySelector("#settingBrandText").value,
+        logoDataUrl: pendingLogoDataUrl,
+        navResearch: document.querySelector("#settingNavResearch").value,
+        navProducts: document.querySelector("#settingNavProducts").value,
+        navBusiness: document.querySelector("#settingNavBusiness").value,
+        navDevelopers: document.querySelector("#settingNavDevelopers").value,
+        navCompany: document.querySelector("#settingNavCompany").value,
+        navLogin: document.querySelector("#settingNavLogin").value,
+        navSubmenus,
+        navArticles: collectSubmenuArticles(navSubmenus),
+        eyebrow: document.querySelector("#settingEyebrow").value,
+        metaDate: document.querySelector("#settingMetaDate").value,
+        metaCategory: document.querySelector("#settingMetaCategory").value,
+        title: document.querySelector("#settingTitle").value,
+        subtitle: document.querySelector("#settingSubtitle").value,
+        primaryCta: document.querySelector("#settingPrimaryCta").value,
+        titleFontSize: document.querySelector("#settingTitleFontSize").value,
+        subtitleFontSize: document.querySelector("#settingSubtitleFontSize").value,
+        bodyFontSize: document.querySelector("#settingBodyFontSize").value,
+        methodTitle: document.querySelector("#settingMethodTitle").value,
+        methodText: document.querySelector("#settingMethodText").value,
+        limitTitle: document.querySelector("#settingLimitTitle").value,
+        limitText: document.querySelector("#settingLimitText").value,
+        deployTitle: document.querySelector("#settingDeployTitle").value,
+        deployText: document.querySelector("#settingDeployText").value,
+        visibleEntries: defaultSettings.visibleEntries
+      });
+    }
+
+    function renderSettings(settings) {
+      currentSettings = normalizeSettings(settings);
+      pendingLogoDataUrl = currentSettings.logoDataUrl;
+      pendingSubmenuArticles = currentSettings.navArticles;
+      document.querySelector("#settingBrandText").value = currentSettings.brandText;
+      document.querySelector("#settingNavResearch").value = currentSettings.navResearch;
+      document.querySelector("#settingNavProducts").value = currentSettings.navProducts;
+      document.querySelector("#settingNavBusiness").value = currentSettings.navBusiness;
+      document.querySelector("#settingNavDevelopers").value = currentSettings.navDevelopers;
+      document.querySelector("#settingNavCompany").value = currentSettings.navCompany;
+      document.querySelector("#settingNavLogin").value = currentSettings.navLogin;
+      document.querySelector("#settingSubmenuResearch").value = listToTextarea(currentSettings.navSubmenus.research);
+      document.querySelector("#settingSubmenuProducts").value = listToTextarea(currentSettings.navSubmenus.products);
+      document.querySelector("#settingSubmenuBusiness").value = listToTextarea(currentSettings.navSubmenus.business);
+      document.querySelector("#settingSubmenuDevelopers").value = listToTextarea(currentSettings.navSubmenus.developers);
+      document.querySelector("#settingSubmenuCompany").value = listToTextarea(currentSettings.navSubmenus.company);
+      renderNavigationEditor();
+      document.querySelector("#settingEyebrow").value = currentSettings.eyebrow;
+      document.querySelector("#settingMetaDate").value = currentSettings.metaDate;
+      document.querySelector("#settingMetaCategory").value = currentSettings.metaCategory;
+      document.querySelector("#settingTitle").value = currentSettings.title;
+      document.querySelector("#settingSubtitle").value = currentSettings.subtitle;
+      document.querySelector("#settingPrimaryCta").value = currentSettings.primaryCta;
+      document.querySelector("#settingTitleFontSize").value = currentSettings.titleFontSize;
+      document.querySelector("#settingSubtitleFontSize").value = currentSettings.subtitleFontSize;
+      document.querySelector("#settingBodyFontSize").value = currentSettings.bodyFontSize;
+      document.querySelector("#settingMethodTitle").value = currentSettings.methodTitle;
+      document.querySelector("#settingMethodText").value = currentSettings.methodText;
+      document.querySelector("#settingLimitTitle").value = currentSettings.limitTitle;
+      document.querySelector("#settingLimitText").value = currentSettings.limitText;
+      document.querySelector("#settingDeployTitle").value = currentSettings.deployTitle;
+      document.querySelector("#settingDeployText").value = currentSettings.deployText;
+      refreshHomepageSectionOptionLabels(currentSettings);
+      renderHomepageSectionEditor();
+      renderPreview(currentSettings);
+    }
+
+    function renderPreview(settings) {
+      document.querySelector("#previewBrandText").textContent = settings.brandText;
+      const previewLogo = document.querySelector("#previewBrandLogo");
+      const previewFallback = document.querySelector("#previewBrandFallback");
+      const settingLogo = document.querySelector("#settingBrandLogoPreview");
+      const settingFallback = document.querySelector("#settingBrandLogoFallback");
+      const hasCustomLogo = Boolean(settings.logoDataUrl);
+      [[previewLogo, previewFallback], [settingLogo, settingFallback]].forEach(([image, fallback]) => {
+        fallback.hidden = hasCustomLogo;
+        image.onerror = () => {
+          image.hidden = true;
+          fallback.hidden = false;
+        };
+        image.hidden = !hasCustomLogo;
+        image.src = hasCustomLogo ? settings.logoDataUrl : "";
+      });
+      document.querySelector("#previewNavResearch").textContent = settings.navResearch;
+      document.querySelector("#previewNavProducts").textContent = settings.navProducts;
+      document.querySelector("#previewNavBusiness").textContent = settings.navBusiness;
+      document.querySelector("#previewNavDevelopers").textContent = settings.navDevelopers;
+      document.querySelector("#previewNavCompany").textContent = settings.navCompany;
+      document.querySelector("#previewNavLogin").textContent = settings.navLogin;
+      document.querySelector("#previewNavStart").textContent = settings.primaryCta;
+      document.querySelector("#previewEyebrow").textContent = settings.eyebrow;
+      document.querySelector("#previewMetaDate").textContent = settings.metaDate;
+      document.querySelector("#previewMetaCategory").textContent = settings.metaCategory;
+      document.querySelector("#previewTitle").textContent = settings.title;
+      document.querySelector("#previewTitle").style.fontSize = `clamp(34px, 6vw, ${settings.titleFontSize}px)`;
+      document.querySelector("#previewSubtitle").textContent = settings.subtitle;
+      document.querySelector("#previewSubtitle").style.fontSize = `${Math.min(settings.subtitleFontSize, 30)}px`;
+      document.querySelector("#previewPrimaryCta").textContent = settings.primaryCta;
+      document.querySelector("#previewMethodTitle").textContent = settings.methodTitle;
+      document.querySelector("#previewLimitTitle").textContent = settings.limitTitle;
+      document.querySelector("#previewDeployTitle").textContent = settings.deployTitle;
+      renderPreviewArticle(settings, activePreviewArticle);
+    }
+
+    function renderPreviewArticle(settings, key = "method") {
+      const articleMap = {
+        method: settings.methodText,
+        limit: settings.limitText,
+        deploy: settings.deployText
+      };
+      activePreviewArticle = articleMap[key] ? key : "method";
+      previewArticleTabs.forEach((tab) => {
+        tab.classList.toggle("is-active", tab.dataset.previewArticle === activePreviewArticle);
+      });
+      previewArticleText.textContent = articleMap[activePreviewArticle];
+    }
+
+    async function loadSettings() {
+      const snapshot = await getDoc(homepageSettingsRef);
+      renderSettings(snapshot.exists() ? snapshot.data() : defaultSettings);
+    }
+
+    loginBtn.addEventListener("click", async () => {
+      authStatus.textContent = "正在打开 Google 登录...";
+      await signInWithPopup(auth, provider).catch((error) => {
+        authStatus.textContent = `登录失败：${error.message || "请重试"}`;
+      });
+    });
+
+    logoutBtn.addEventListener("click", async () => {
+      authStatus.textContent = "正在退出登录...";
+      localStorage.setItem("simplepos-force-account-choice", "1");
+      await signOut(auth);
+    });
+
+    form.addEventListener("input", (event) => {
+      if (event.target.matches(".submenu-article-text")) {
+        pendingSubmenuArticles = collectSubmenuArticles(readNavSubmenusFromForm());
+      }
+      renderPreview(readFormSettings());
+    });
+
+    document.querySelector("#navGroupSelect").addEventListener("change", (event) => {
+      pendingSubmenuArticles = collectSubmenuArticles(readNavSubmenusFromForm());
+      activeNavGroup = event.target.value;
+      activeSubmenuLabel = "";
+      renderNavigationEditor();
+      renderPreview(readFormSettings());
+    });
+
+    document.querySelector("#settingSelectedNavLabel").addEventListener("input", (event) => {
+      const field = document.querySelector(navGroupFields[activeNavGroup]);
+      field.value = event.target.value;
+      renderNavigationEditor();
+      renderPreview(readFormSettings());
+    });
+
+    document.querySelector("#submenuSelect").addEventListener("change", (event) => {
+      pendingSubmenuArticles = collectSubmenuArticles(readNavSubmenusFromForm());
+      activeSubmenuLabel = event.target.value;
+      renderSubmenuArticleEditors();
+      renderPreview(readFormSettings());
+    });
+
+    document.querySelector("#addSubmenuBtn").addEventListener("click", () => {
+      const input = document.querySelector("#newSubmenuLabel");
+      const label = String(input.value || "").replace(/\s+/g, " ").trim().slice(0, 40);
+      if (!label) {
+        statusLine.textContent = "请输入子导航名称。";
+        statusLine.classList.add("error");
+        return;
+      }
+      const items = readNavSubmenusFromForm();
+      if (items[activeNavGroup].includes(label)) {
+        statusLine.textContent = "这个子导航已经存在。";
+        statusLine.classList.add("error");
+        return;
+      }
+      items[activeNavGroup].push(label);
+      document.querySelector(`#settingSubmenu${activeNavGroup[0].toUpperCase()}${activeNavGroup.slice(1)}`).value = listToTextarea(items[activeNavGroup]);
+      pendingSubmenuArticles[activeNavGroup] ||= {};
+      pendingSubmenuArticles[activeNavGroup][label] = defaultSubmenuArticle(label);
+      activeSubmenuLabel = label;
+      input.value = "";
+      statusLine.textContent = "已新增子导航，请填写对应文章后保存。";
+      statusLine.classList.remove("error");
+      renderNavigationEditor();
+      renderPreview(readFormSettings());
+    });
+
+    document.querySelector("#homepageContentSelect").addEventListener("change", (event) => {
+      activeHomepageSection = event.target.value;
+      renderHomepageSectionEditor();
+    });
+
+    ["#settingMethodTitle", "#settingLimitTitle", "#settingDeployTitle"].forEach((selector) => {
+      document.querySelector(selector).addEventListener("input", () => refreshHomepageSectionOptionLabels());
+    });
+
+    document.querySelector("#settingBrandLogo").addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      statusLine.classList.remove("error");
+      statusLine.textContent = "正在压缩品牌图标...";
+      try {
+        pendingLogoDataUrl = await shrinkLogo(file);
+        renderPreview(readFormSettings());
+        statusLine.textContent = "品牌图标已准备好，请点击保存网页设置后发布。";
+      } catch (error) {
+        event.target.value = "";
+        statusLine.textContent = error.message || "图片处理失败。";
+        statusLine.classList.add("error");
+      }
+    });
+
+    document.querySelector("#clearBrandLogoBtn").addEventListener("click", () => {
+      pendingLogoDataUrl = "";
+      document.querySelector("#settingBrandLogo").value = "";
+      renderPreview(readFormSettings());
+      statusLine.textContent = "已恢复默认图标，点击保存网页设置后发布。";
+      statusLine.classList.remove("error");
+    });
+
+    previewArticleTabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        renderPreviewArticle(readFormSettings(), tab.dataset.previewArticle);
+      });
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!isAdminUser(auth.currentUser)) {
+        statusLine.textContent = "只有管理员可以保存网页设置。";
+        statusLine.classList.add("error");
+        return;
+      }
+      const nextSettings = readFormSettings();
+      statusLine.textContent = "正在保存...";
+      statusLine.classList.remove("error");
+      try {
+        await setDoc(homepageSettingsRef, {
+          ...nextSettings,
+          updatedAt: serverTimestamp(),
+          updatedBy: auth.currentUser.email || auth.currentUser.uid || ""
+        }, { merge: true });
+        localStorage.setItem(homepageSettingsCacheKey, JSON.stringify(nextSettings));
+        renderSettings(nextSettings);
+        statusLine.textContent = "网页设置已保存。";
+      } catch (error) {
+        statusLine.textContent = `保存失败：${error.code || error.message || "请重试"}`;
+        statusLine.classList.add("error");
+      }
+    });
+
+    resetBtn.addEventListener("click", () => {
+      renderSettings(defaultSettings);
+      statusLine.textContent = "已恢复默认预览，请点击保存才会同步到云端。";
+      statusLine.classList.remove("error");
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      const adminUser = isAdminUser(user);
+      loginBtn.classList.toggle("hidden", Boolean(user));
+      logoutBtn.classList.toggle("hidden", !user);
+      form.classList.toggle("hidden", !adminUser);
+      previewPanel.classList.toggle("hidden", !adminUser);
+
+      if (!user) {
+        authStatus.textContent = "请先使用管理员 Google 账号登录。";
+        return;
+      }
+      if (!adminUser) {
+        authStatus.textContent = `当前账号 ${user.email || user.displayName || ""} 不是管理员，无法进入网页设置。`;
+        return;
+      }
+      authStatus.textContent = `管理员已登录：${user.email || user.displayName || "Google 账号"}。`;
+      try {
+        await loadSettings();
+      } catch (error) {
+        renderSettings(defaultSettings);
+        statusLine.textContent = `读取设置失败：${error.code || error.message || "使用默认值"}`;
+        statusLine.classList.add("error");
+      }
+    });
+  </script>
+</body>
+</html>

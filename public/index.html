@@ -1,0 +1,1356 @@
+<!doctype html>
+<html lang="zh-Hans" class="homepage-settings-loading">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="description" content="极简养生系统：轻盈健康的生活从养生开始。">
+  <title>极简养生系统 | 轻盈健康的生活从养生开始</title>
+  <style>
+    :root {
+      --brand: #0f766e;
+      --brand-dark: #0b5d57;
+      --line: #d8e3df;
+      --bg: #f5faf8;
+      --text: #071d1a;
+      --muted: #66756f;
+      --soft: #eef7f4;
+      --paper: #ffffff;
+      --warn: #8a5a00;
+      --home-title-size: 96px;
+      --home-subtitle-size: 30px;
+      --home-body-size: 30px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: #fff;
+    }
+
+    .homepage-settings-loading main,
+    .homepage-settings-loading footer {
+      visibility: hidden;
+    }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid rgba(216, 227, 223, .75);
+      background: rgba(255, 255, 255, .92);
+      backdrop-filter: blur(14px);
+    }
+
+    .top-nav {
+      width: min(1280px, 100%);
+      margin: 0 auto;
+      padding: 12px clamp(14px, 3vw, 32px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .nav-left,
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: clamp(16px, 3vw, 34px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 26px;
+      line-height: 1;
+      overflow: hidden;
+    }
+
+    .brand-mark img,
+    .footer-logo img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    .brand-mark img[hidden],
+    .footer-logo img[hidden] {
+      display: none !important;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: clamp(16px, 2.6vw, 32px);
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .nav-links a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .nav-item {
+      position: relative;
+      padding: 18px 0;
+    }
+
+    .nav-submenu {
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      min-width: 220px;
+      transform: translateX(-50%) translateY(8px);
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .98);
+      box-shadow: 0 18px 42px rgba(7, 29, 26, .12);
+      display: grid;
+      gap: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .16s ease, transform .16s ease;
+    }
+
+    .nav-submenu a {
+      color: var(--text);
+      white-space: nowrap;
+      font-weight: 800;
+    }
+
+    .nav-item:hover .nav-submenu,
+    .nav-item:focus-within .nav-submenu {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .nav-login {
+      min-height: 46px;
+      padding: 10px 22px;
+      border-radius: 999px;
+      background: #f0f1ef;
+      color: var(--text);
+      font-weight: 900;
+      text-decoration: none;
+    }
+
+    .nav-start {
+      min-height: 46px;
+      padding: 10px 24px;
+      border-radius: 999px;
+      background: #000;
+      color: #fff;
+      font-weight: 900;
+      text-decoration: none;
+    }
+
+    main {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: 0 clamp(18px, 4vw, 54px) 54px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 18px;
+      min-height: clamp(560px, 74vh, 760px);
+      align-items: start;
+      padding: clamp(42px, 5vw, 62px) 0 clamp(120px, 14vh, 178px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero-copy {
+      display: grid;
+      gap: 16px;
+      justify-items: center;
+      text-align: center;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .article-layout {
+      display: grid;
+      grid-template-columns: minmax(160px, 280px) minmax(0, 1fr);
+      gap: clamp(34px, 7vw, 120px);
+      padding: clamp(72px, 9vw, 130px) 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .article-nav {
+      position: sticky;
+      top: 92px;
+      align-self: start;
+      display: grid;
+      gap: 18px;
+    }
+
+    .article-nav a,
+    .article-nav button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: clamp(16px, 1.6vw, 20px);
+      font-weight: 800;
+      font-family: inherit;
+      text-align: left;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .article-nav a:hover,
+    .article-nav a:focus,
+    .article-nav button:hover,
+    .article-nav button:focus,
+    .article-nav button.is-active {
+      color: var(--text);
+    }
+
+    .article-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: var(--muted);
+      font-weight: 800;
+      justify-content: center;
+    }
+
+    .eyebrow {
+      margin: 0;
+      color: var(--brand);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .06em;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      max-width: min(1120px, 100%);
+      font-size: clamp(48px, 8.2vw, var(--home-title-size));
+      line-height: .98;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+      text-wrap: balance;
+    }
+
+    h2 {
+      font-size: clamp(26px, 3vw, 38px);
+    }
+
+    h3 {
+      font-size: 19px;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .lead {
+      max-width: 900px;
+      font-size: clamp(22px, 2.7vw, var(--home-subtitle-size));
+      line-height: 1.5;
+    }
+
+    .status-row {
+      display: none;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 6px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .section {
+      margin-top: 38px;
+    }
+
+    .portal-panel {
+      display: grid;
+      gap: 18px;
+      margin-top: clamp(36px, 6vw, 80px);
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .feature-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .feature-item {
+      display: grid;
+      gap: 8px;
+      min-height: 132px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .feature-item strong {
+      font-size: 20px;
+    }
+
+    .feature-item span {
+      color: var(--brand);
+      font-weight: 900;
+    }
+
+    .article-section {
+      display: none;
+      padding: 0 0 clamp(64px, 7vw, 96px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .article-section.is-active {
+      display: block;
+    }
+
+    .article-section:last-child {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .article-section h2 {
+      display: none;
+    }
+
+    .article-copy {
+      display: grid;
+      gap: clamp(22px, 4vw, 42px);
+      max-width: 980px;
+    }
+
+    .article-copy p {
+      color: #000;
+      font-size: clamp(26px, 3vw, var(--home-body-size));
+      line-height: 1.48;
+      letter-spacing: 0;
+      white-space: pre-line;
+    }
+
+    .submenu-article {
+      max-width: 980px;
+      margin: 0 0 clamp(72px, 9vw, 130px) auto;
+      padding: clamp(30px, 5vw, 54px);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfefd;
+    }
+
+    .submenu-article h2 {
+      margin-bottom: 22px;
+    }
+
+    .submenu-article p {
+      color: #000;
+      font-size: clamp(20px, 2.4vw, var(--home-body-size));
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+
+    .minimal-entry {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .mini-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-top: 4px;
+    }
+
+    .mini-links a {
+      color: var(--brand-dark);
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .settings-panel {
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      font: inherit;
+      font-weight: 700;
+      background: #fff;
+    }
+
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfefd;
+      font-weight: 800;
+    }
+
+    .check-row input {
+      width: 20px;
+      height: 20px;
+    }
+
+    .form-status {
+      min-height: 24px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .fast-lane {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .fast-button {
+      display: grid;
+      gap: 6px;
+      min-height: 96px;
+      padding: 18px;
+      border: 2px solid var(--brand);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      text-decoration: none;
+      box-shadow: 0 12px 24px rgba(15, 118, 110, .08);
+    }
+
+    .fast-button.primary {
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .fast-button strong {
+      font-size: 24px;
+      line-height: 1.1;
+    }
+
+    .fast-button span {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .fast-button.primary span {
+      color: #dff7f2;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 10px 18px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .button.primary {
+      border-color: #000;
+      background: #000;
+      color: #fff;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .wide-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .card,
+    .flow-card {
+      display: grid;
+      gap: 10px;
+      min-height: 142px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .card.primary {
+      background: var(--brand);
+      color: #fff;
+      border-color: var(--brand);
+    }
+
+    .card.primary p,
+    .card.primary .tag {
+      color: #dff7f2;
+    }
+
+    .card:hover,
+    .flow-card:hover {
+      border-color: var(--brand);
+    }
+
+    .is-locked {
+      opacity: .58;
+      cursor: not-allowed;
+      filter: grayscale(.2);
+    }
+
+    .is-locked:hover {
+      border-color: var(--line);
+    }
+
+    .card strong {
+      font-size: 22px;
+      line-height: 1.2;
+    }
+
+    .tag {
+      color: var(--brand);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .flow-card {
+      min-height: 118px;
+      background: #fbfefd;
+    }
+
+    .flow-card span {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: var(--soft);
+      color: var(--brand);
+      font-weight: 900;
+    }
+
+    .notice {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border: 1px solid #ead7a4;
+      border-left: 5px solid var(--warn);
+      border-radius: 8px;
+      background: #fff9eb;
+      color: #513800;
+      line-height: 1.6;
+    }
+
+    .notice strong {
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .site-footer {
+      width: min(1280px, 100%);
+      margin: 0 auto;
+      padding: 34px clamp(14px, 3vw, 32px) 42px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+    }
+
+    .footer-map {
+      display: grid;
+      grid-template-columns: 1.3fr repeat(5, minmax(0, 1fr));
+      gap: clamp(18px, 3vw, 36px);
+      align-items: start;
+    }
+
+    .footer-brand {
+      display: grid;
+      gap: 12px;
+    }
+
+    .footer-brand-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text);
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    .footer-logo {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 26px;
+      overflow: hidden;
+    }
+
+    .footer-column {
+      display: grid;
+      gap: 10px;
+    }
+
+    .footer-column strong {
+      color: var(--text);
+      font-size: 16px;
+    }
+
+    .footer-column a {
+      color: var(--muted);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .footer-bottom {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 30px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      font-weight: 700;
+    }
+
+    @media (max-width: 860px) {
+      .grid,
+      .wide-grid,
+      .fast-lane,
+      .flow,
+      .feature-strip,
+      .minimal-entry,
+      .settings-grid,
+      .article-layout,
+      .footer-map,
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .article-layout {
+        padding: 34px 0 72px;
+      }
+
+      .article-nav {
+        position: static;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 16px;
+        padding-bottom: 22px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .article-section {
+        padding: 38px 0;
+      }
+
+      .hero {
+        min-height: 520px;
+        padding: 34px 0 96px;
+      }
+
+      h1 {
+        font-size: clamp(40px, 14vw, 72px);
+      }
+
+      .lead {
+        font-size: clamp(20px, 6vw, 30px);
+      }
+
+      .article-copy p {
+        font-size: clamp(20px, 6vw, 30px);
+      }
+
+      .nav-links {
+        display: none;
+      }
+
+      .top-nav {
+        gap: 10px;
+      }
+
+      .brand {
+        font-size: 21px;
+      }
+
+      .nav-actions {
+        gap: 8px;
+      }
+
+      .nav-login,
+      .nav-start {
+        min-height: 40px;
+        padding: 8px 12px;
+      }
+
+      .section-head {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      .fast-button {
+        min-height: 86px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <nav class="top-nav" aria-label="主导航">
+      <div class="nav-left">
+        <a class="brand" href="./index.html">
+          <span class="brand-mark" id="brandMark"><img id="brandImage" alt="" hidden><span id="brandFallback">简</span></span>
+          <span id="brandText">极简养生</span>
+        </a>
+        <div class="nav-links">
+          <div class="nav-item">
+            <a href="#methods" id="navResearch">研究</a>
+            <div class="nav-submenu" id="submenuResearch"></div>
+          </div>
+          <div class="nav-item">
+            <a href="#entry" id="navProducts">产品</a>
+            <div class="nav-submenu" id="submenuProducts"></div>
+          </div>
+          <div class="nav-item">
+            <a href="#deployment" id="navBusiness">商业</a>
+            <div class="nav-submenu" id="submenuBusiness"></div>
+          </div>
+          <div class="nav-item">
+            <a href="#entry" id="navDevelopers">开发</a>
+            <div class="nav-submenu" id="submenuDevelopers"></div>
+          </div>
+          <div class="nav-item">
+            <a href="#limits" id="navCompany">公司</a>
+            <div class="nav-submenu" id="submenuCompany"></div>
+          </div>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <a class="nav-login" href="./login.html?next=./system.html?module=home" id="navLogin">登录</a>
+        <a class="nav-start" href="./login.html?next=./system.html?module=home" id="navStart">开始使用</a>
+      </div>
+    </nav>
+  </header>
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow" id="homeEyebrow">极简养生 · 为更好的明天</p>
+        <div class="article-meta">
+          <span id="homeMetaDate">2026</span>
+          <span id="homeMetaCategory">Product</span>
+        </div>
+        <h1 id="homeTitle">极简养生系统 · 简介</h1>
+        <p class="lead" id="homeSubtitle">极简养生系统，协助你拥抱 有钱有闲有健康 的生活。</p>
+        <div class="hero-actions">
+          <a class="button primary" href="./login.html?next=./system.html?module=home" id="primaryCta">开始使用</a>
+        </div>
+        <div class="status-row">
+          <span class="pill">POS</span>
+          <span class="pill">SimplePay</span>
+          <span class="pill">会员中心</span>
+          <span class="pill">简单联盟</span>
+          <span class="pill">统一 Google 登录</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="article-layout" aria-label="系统说明">
+      <nav class="article-nav" aria-label="页面区块">
+        <button type="button" class="is-active" data-article-tab="methods" id="methodNavLabel">系统方法</button>
+        <button type="button" data-article-tab="limits" id="limitNavLabel">权限边界</button>
+        <button type="button" data-article-tab="deployment" id="deployNavLabel">持续完善</button>
+      </nav>
+
+      <div class="article-body">
+        <section class="article-section is-active" id="methods">
+          <h2 id="methodTitle">系统方法</h2>
+          <div class="article-copy">
+            <p id="methodText">简单系统把门店收银、顾客资料、付款与推荐关系放进同一个登录入口。会员只填写一次资料，员工只进入授权功能，管理员集中处理审核与设置。</p>
+          </div>
+        </section>
+
+        <section class="article-section" id="limits">
+          <h2 id="limitTitle">权限边界</h2>
+          <div class="article-copy">
+            <p id="limitText">游客只能概览。普通会员和员工只能使用自己的资料与授权分行。管理员登录系统页面后，才会看到后台设置与关键系统管理。</p>
+          </div>
+        </section>
+
+        <section class="article-section" id="deployment">
+          <h2 id="deployTitle">持续完善</h2>
+          <div class="article-copy">
+            <p id="deployText">系统会先保持轻量、低成本、容易测试。门店真实使用后，再根据收银、付款、会员和联盟流程逐步完善。</p>
+          </div>
+        </section>
+
+      </div>
+    </section>
+
+    <section class="submenu-article hidden" id="submenuArticle" aria-live="polite">
+      <h2 id="submenuArticleTitle"></h2>
+      <p id="submenuArticleText"></p>
+    </section>
+
+  </main>
+  <footer class="site-footer">
+    <div class="footer-map">
+      <div class="footer-brand">
+        <div class="footer-brand-row">
+          <span class="footer-logo" id="footerLogo"><img id="footerImage" alt="" hidden><span id="footerFallback">简</span></span>
+          <span id="footerBrandText">极简养生</span>
+        </div>
+      </div>
+      <div class="footer-column">
+        <strong id="footerResearchTitle">研究</strong>
+        <div id="footerResearchLinks"></div>
+      </div>
+      <div class="footer-column">
+        <strong id="footerProductsTitle">产品</strong>
+        <div id="footerProductsLinks"></div>
+      </div>
+      <div class="footer-column">
+        <strong id="footerBusinessTitle">商业</strong>
+        <div id="footerBusinessLinks"></div>
+      </div>
+      <div class="footer-column">
+        <strong id="footerDevelopersTitle">开发</strong>
+        <div id="footerDevelopersLinks"></div>
+      </div>
+      <div class="footer-column">
+        <strong id="footerCompanyTitle">公司</strong>
+        <div id="footerCompanyLinks"></div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 极简养生</span>
+      <span>统一登录 · 资料主档 · 分行权限</span>
+    </div>
+  </footer>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getAuth,
+      browserLocalPersistence,
+      onAuthStateChanged,
+      setPersistence
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import {
+      doc,
+      getDoc,
+      getFirestore
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    let configModule;
+    try {
+      configModule = await import("./shared/firebase-config.local.js");
+    } catch {
+      configModule = await import("./shared/firebase-config.js");
+    }
+
+    const app = initializeApp(configModule.firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    await setPersistence(auth, browserLocalPersistence).catch(() => {});
+    const homeTitle = document.querySelector("#homeTitle");
+    const brandText = document.querySelector("#brandText");
+    const brandImage = document.querySelector("#brandImage");
+    const brandFallback = document.querySelector("#brandFallback");
+    const footerImage = document.querySelector("#footerImage");
+    const footerFallback = document.querySelector("#footerFallback");
+    const navResearch = document.querySelector("#navResearch");
+    const navProducts = document.querySelector("#navProducts");
+    const navBusiness = document.querySelector("#navBusiness");
+    const navDevelopers = document.querySelector("#navDevelopers");
+    const navCompany = document.querySelector("#navCompany");
+    const navLogin = document.querySelector("#navLogin");
+    const navStart = document.querySelector("#navStart");
+    const submenuTargets = {
+      research: document.querySelector("#submenuResearch"),
+      products: document.querySelector("#submenuProducts"),
+      business: document.querySelector("#submenuBusiness"),
+      developers: document.querySelector("#submenuDevelopers"),
+      company: document.querySelector("#submenuCompany")
+    };
+    const submenuArticle = document.querySelector("#submenuArticle");
+    const submenuArticleTitle = document.querySelector("#submenuArticleTitle");
+    const submenuArticleText = document.querySelector("#submenuArticleText");
+    const footerBrandText = document.querySelector("#footerBrandText");
+    const footerTitles = {
+      research: document.querySelector("#footerResearchTitle"),
+      products: document.querySelector("#footerProductsTitle"),
+      business: document.querySelector("#footerBusinessTitle"),
+      developers: document.querySelector("#footerDevelopersTitle"),
+      company: document.querySelector("#footerCompanyTitle")
+    };
+    const footerLinkTargets = {
+      research: document.querySelector("#footerResearchLinks"),
+      products: document.querySelector("#footerProductsLinks"),
+      business: document.querySelector("#footerBusinessLinks"),
+      developers: document.querySelector("#footerDevelopersLinks"),
+      company: document.querySelector("#footerCompanyLinks")
+    };
+    const homeEyebrow = document.querySelector("#homeEyebrow");
+    const homeMetaDate = document.querySelector("#homeMetaDate");
+    const homeMetaCategory = document.querySelector("#homeMetaCategory");
+    const homeSubtitle = document.querySelector("#homeSubtitle");
+    const primaryCta = document.querySelector("#primaryCta");
+    const methodTitle = document.querySelector("#methodTitle");
+    const methodNavLabel = document.querySelector("#methodNavLabel");
+    const methodText = document.querySelector("#methodText");
+    const limitTitle = document.querySelector("#limitTitle");
+    const limitNavLabel = document.querySelector("#limitNavLabel");
+    const limitText = document.querySelector("#limitText");
+    const deployTitle = document.querySelector("#deployTitle");
+    const deployNavLabel = document.querySelector("#deployNavLabel");
+    const deployText = document.querySelector("#deployText");
+    const articleTabs = [...document.querySelectorAll("[data-article-tab]")];
+    const articleSections = [...document.querySelectorAll(".article-section")];
+    const entryLinks = [...document.querySelectorAll("[data-entry-key]")];
+    const protectedLinks = [...document.querySelectorAll("[data-requires-auth]")];
+    const unifiedLoginKey = "simplepos-unified-google-user";
+    const forceAccountChoiceKey = "simplepos-force-account-choice";
+    const homepageSettingsCacheKey = "simplepos-homepage-settings";
+    const loginUrl = "./login.html?next=./system.html?module=home";
+    const forcedLoginUrl = "./login.html?forceAccount=1&next=./system.html%3Fmodule%3Dhome";
+    const homepageSettingsRef = doc(db, "portalSettings", "homepage");
+    const defaultHomepageSettings = {
+      title: "极简养生系统 · 简介",
+      brandText: "极简养生",
+      logoDataUrl: "",
+      navResearch: "研究",
+      navProducts: "产品",
+      navBusiness: "商业",
+      navDevelopers: "开发",
+      navCompany: "公司",
+      navLogin: "登录",
+      navSubmenus: {
+        research: ["养生研究", "健康档案", "案例记录"],
+        products: ["简单POS", "SimplePay", "会员中心", "简单联盟"],
+        business: ["分行管理", "商家收款", "区域授权"],
+        developers: ["系统整合", "数据同步", "权限规则"],
+        company: ["关于极简养生", "条款与隐私", "联系我们"]
+      },
+      navArticles: {},
+      eyebrow: "极简养生 · 为更好的明天",
+      metaDate: "2026",
+      metaCategory: "Product",
+      subtitle: "极简养生系统，协助你拥抱 有钱有闲有健康 的生活。",
+      primaryCta: "开始使用",
+      titleFontSize: 96,
+      subtitleFontSize: 30,
+      bodyFontSize: 30,
+      methodTitle: "系统方法",
+      methodText: "简单系统把门店收银、顾客资料、付款与推荐关系放进同一个登录入口。会员只填写一次资料，员工只进入授权功能，管理员集中处理审核与设置。",
+      limitTitle: "权限边界",
+      limitText: "游客只能概览。普通会员和员工只能使用自己的资料与授权分行。管理员登录系统页面后，才会看到后台设置与关键系统管理。",
+      deployTitle: "持续完善",
+      deployText: "系统会先保持轻量、低成本、容易测试。门店真实使用后，再根据收银、付款、会员和联盟流程逐步完善。",
+      visibleEntries: {
+        pos: true,
+        customer: true,
+        simplepay: true,
+        member: true
+      }
+    };
+    let currentHomepageSettings = { ...defaultHomepageSettings, visibleEntries: { ...defaultHomepageSettings.visibleEntries } };
+
+    function rememberUnifiedLogin(user) {
+      if (!user) {
+        localStorage.removeItem(unifiedLoginKey);
+        return;
+      }
+      localStorage.setItem(unifiedLoginKey, JSON.stringify({
+        uid: user.uid || "",
+        email: user.email || "",
+        displayName: user.displayName || "",
+        updatedAt: new Date().toISOString()
+      }));
+    }
+
+    function setProtectedLinksEnabled(enabled) {
+      protectedLinks.forEach((link) => {
+        link.classList.toggle("is-locked", !enabled);
+        link.setAttribute("aria-disabled", enabled ? "false" : "true");
+        link.title = enabled ? "" : "请先完成统一 Google 登录";
+      });
+    }
+
+    function showArticleSection(sectionId = "methods") {
+      const selectedId = articleSections.some((section) => section.id === sectionId) ? sectionId : "methods";
+      articleTabs.forEach((tab) => {
+        const isActive = tab.dataset.articleTab === selectedId;
+        tab.classList.toggle("is-active", isActive);
+        tab.setAttribute("aria-selected", isActive ? "true" : "false");
+      });
+      articleSections.forEach((section) => {
+        section.classList.toggle("is-active", section.id === selectedId);
+      });
+    }
+
+    function setLandingAuthLinks(user) {
+      const mustChooseAccount = localStorage.getItem(forceAccountChoiceKey) === "1";
+      const target = user && !mustChooseAccount
+        ? "./system.html?module=home"
+        : (mustChooseAccount ? forcedLoginUrl : loginUrl);
+      navLogin.href = target;
+      navStart.href = target;
+      primaryCta.href = target;
+    }
+
+    function cleanText(value, fallback, maxLength) {
+      const text = String(value || "").replace(/\s+/g, " ").trim();
+      return (text || fallback).slice(0, maxLength);
+    }
+
+    function cleanLongText(value, fallback, maxLength) {
+      const text = String(value || "")
+        .replace(/\r\n/g, "\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      return (text || fallback).slice(0, maxLength);
+    }
+
+    function cleanList(value, fallback) {
+      const source = Array.isArray(value) ? value : String(value || "").split(/\r?\n/);
+      const items = source
+        .map((item) => cleanText(item, "", 22))
+        .filter(Boolean)
+        .slice(0, 6);
+      return items.length ? items : fallback;
+    }
+
+    function defaultSubmenuArticle(label) {
+      return `${label}\n\n\u5185\u5bb9\u6b63\u5728\u6574\u7406\u3002`;
+    }
+
+    function cleanSubmenuArticle(value, fallback) {
+      const text = String(value || "")
+        .replace(/\r\n/g, "\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      return (text || fallback).slice(0, 3500);
+    }
+
+    function normalizeNavArticles(raw, navSubmenus) {
+      const source = raw && typeof raw === "object" ? raw : {};
+      return Object.fromEntries(Object.entries(navSubmenus).map(([key, labels]) => [
+        key,
+        Object.fromEntries(labels.map((label) => [
+          label,
+          cleanSubmenuArticle(source[key]?.[label], defaultSubmenuArticle(label))
+        ]))
+      ]));
+    }
+
+    function cleanNumber(value, fallback, min, max) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return fallback;
+      return Math.min(max, Math.max(min, Math.round(number)));
+    }
+
+    function cleanLogoDataUrl(value) {
+      const dataUrl = String(value || "").trim();
+      return /^data:image\/(?:png|jpe?g|webp);base64,[a-z0-9+/=\s]+$/i.test(dataUrl) && dataUrl.length <= 360000
+        ? dataUrl
+        : "";
+    }
+
+    function normalizeHomepageSettings(raw = {}) {
+      const visibleEntries = raw.visibleEntries || {};
+      const navSubmenus = {
+        research: cleanList(raw.navSubmenus?.research, defaultHomepageSettings.navSubmenus.research),
+        products: cleanList(raw.navSubmenus?.products, defaultHomepageSettings.navSubmenus.products),
+        business: cleanList(raw.navSubmenus?.business, defaultHomepageSettings.navSubmenus.business),
+        developers: cleanList(raw.navSubmenus?.developers, defaultHomepageSettings.navSubmenus.developers),
+        company: cleanList(raw.navSubmenus?.company, defaultHomepageSettings.navSubmenus.company)
+      };
+      return {
+        title: cleanText(raw.title, defaultHomepageSettings.title, 34),
+        brandText: cleanText(raw.brandText, defaultHomepageSettings.brandText, 12),
+        logoDataUrl: cleanLogoDataUrl(raw.logoDataUrl),
+        navResearch: cleanText(raw.navResearch, defaultHomepageSettings.navResearch, 8),
+        navProducts: cleanText(raw.navProducts, defaultHomepageSettings.navProducts, 8),
+        navBusiness: cleanText(raw.navBusiness, defaultHomepageSettings.navBusiness, 8),
+        navDevelopers: cleanText(raw.navDevelopers, defaultHomepageSettings.navDevelopers, 8),
+        navCompany: cleanText(raw.navCompany, defaultHomepageSettings.navCompany, 8),
+        navLogin: cleanText(raw.navLogin, defaultHomepageSettings.navLogin, 8),
+        navSubmenus,
+        navArticles: normalizeNavArticles(raw.navArticles, navSubmenus),
+        eyebrow: cleanText(raw.eyebrow, defaultHomepageSettings.eyebrow, 46),
+        metaDate: cleanText(raw.metaDate, defaultHomepageSettings.metaDate, 16),
+        metaCategory: cleanText(raw.metaCategory, defaultHomepageSettings.metaCategory, 18),
+        subtitle: cleanText(raw.subtitle, defaultHomepageSettings.subtitle, 120),
+        primaryCta: cleanText(raw.primaryCta, defaultHomepageSettings.primaryCta, 12),
+        titleFontSize: cleanNumber(raw.titleFontSize, defaultHomepageSettings.titleFontSize, 56, 116),
+        subtitleFontSize: cleanNumber(raw.subtitleFontSize, defaultHomepageSettings.subtitleFontSize, 18, 42),
+        bodyFontSize: cleanNumber(raw.bodyFontSize, defaultHomepageSettings.bodyFontSize, 18, 42),
+        methodTitle: cleanText(raw.methodTitle, defaultHomepageSettings.methodTitle, 24),
+        methodText: cleanLongText(raw.methodText, defaultHomepageSettings.methodText, 5000),
+        limitTitle: cleanText(raw.limitTitle, defaultHomepageSettings.limitTitle, 24),
+        limitText: cleanLongText(raw.limitText, defaultHomepageSettings.limitText, 5000),
+        deployTitle: cleanText(raw.deployTitle, defaultHomepageSettings.deployTitle, 24),
+        deployText: cleanLongText(raw.deployText, defaultHomepageSettings.deployText, 5000),
+        visibleEntries: {
+          pos: visibleEntries.pos !== false,
+          customer: visibleEntries.customer !== false,
+          simplepay: visibleEntries.simplepay !== false,
+          member: visibleEntries.member !== false
+        }
+      };
+    }
+
+    function applyHomepageSettings(settings) {
+      currentHomepageSettings = normalizeHomepageSettings(settings);
+      brandText.textContent = currentHomepageSettings.brandText;
+      const hasCustomLogo = Boolean(currentHomepageSettings.logoDataUrl);
+      [[brandImage, brandFallback], [footerImage, footerFallback]].forEach(([image, fallback]) => {
+        fallback.hidden = hasCustomLogo;
+        image.onerror = () => {
+          image.hidden = true;
+          fallback.hidden = false;
+        };
+        image.hidden = !hasCustomLogo;
+        image.src = hasCustomLogo ? currentHomepageSettings.logoDataUrl : "";
+      });
+      navResearch.textContent = currentHomepageSettings.navResearch;
+      navProducts.textContent = currentHomepageSettings.navProducts;
+      navBusiness.textContent = currentHomepageSettings.navBusiness;
+      navDevelopers.textContent = currentHomepageSettings.navDevelopers;
+      navCompany.textContent = currentHomepageSettings.navCompany;
+      navLogin.textContent = currentHomepageSettings.navLogin;
+      navStart.textContent = currentHomepageSettings.primaryCta;
+      footerBrandText.textContent = currentHomepageSettings.brandText;
+      footerTitles.research.textContent = currentHomepageSettings.navResearch;
+      footerTitles.products.textContent = currentHomepageSettings.navProducts;
+      footerTitles.business.textContent = currentHomepageSettings.navBusiness;
+      footerTitles.developers.textContent = currentHomepageSettings.navDevelopers;
+      footerTitles.company.textContent = currentHomepageSettings.navCompany;
+      Object.entries(submenuTargets).forEach(([key, target]) => {
+        target.innerHTML = "";
+        footerLinkTargets[key].innerHTML = "";
+        currentHomepageSettings.navSubmenus[key].forEach((label) => {
+          const link = document.createElement("a");
+          link.href = "#submenuArticle";
+          link.textContent = label;
+          link.addEventListener("click", (event) => {
+            event.preventDefault();
+            showSubmenuArticle(key, label, true);
+          });
+          target.append(link);
+          const footerLink = document.createElement("a");
+          footerLink.href = "#submenuArticle";
+          footerLink.textContent = label;
+          footerLink.addEventListener("click", (event) => {
+            event.preventDefault();
+            showSubmenuArticle(key, label, true);
+          });
+          footerLinkTargets[key].append(footerLink);
+        });
+        target.classList.toggle("hidden", currentHomepageSettings.navSubmenus[key].length === 0);
+        footerLinkTargets[key].closest(".footer-column").classList.toggle(
+          "hidden",
+          currentHomepageSettings.navSubmenus[key].length === 0
+        );
+      });
+      homeEyebrow.textContent = currentHomepageSettings.eyebrow;
+      homeMetaDate.textContent = currentHomepageSettings.metaDate;
+      homeMetaCategory.textContent = currentHomepageSettings.metaCategory;
+      homeTitle.textContent = currentHomepageSettings.title;
+      homeSubtitle.textContent = currentHomepageSettings.subtitle;
+      document.documentElement.style.setProperty("--home-title-size", `${currentHomepageSettings.titleFontSize}px`);
+      document.documentElement.style.setProperty("--home-subtitle-size", `${currentHomepageSettings.subtitleFontSize}px`);
+      document.documentElement.style.setProperty("--home-body-size", `${currentHomepageSettings.bodyFontSize}px`);
+      primaryCta.textContent = currentHomepageSettings.primaryCta;
+      methodTitle.textContent = currentHomepageSettings.methodTitle;
+      methodNavLabel.textContent = currentHomepageSettings.methodTitle;
+      methodText.textContent = currentHomepageSettings.methodText;
+      limitTitle.textContent = currentHomepageSettings.limitTitle;
+      limitNavLabel.textContent = currentHomepageSettings.limitTitle;
+      limitText.textContent = currentHomepageSettings.limitText;
+      deployTitle.textContent = currentHomepageSettings.deployTitle;
+      deployNavLabel.textContent = currentHomepageSettings.deployTitle;
+      deployText.textContent = currentHomepageSettings.deployText;
+      entryLinks.forEach((link) => {
+        const key = link.dataset.entryKey;
+        link.classList.toggle("hidden", currentHomepageSettings.visibleEntries[key] === false);
+      });
+      document.documentElement.classList.remove("homepage-settings-loading");
+    }
+
+    function showSubmenuArticle(group, label, shouldScroll = false) {
+      const content = currentHomepageSettings.navArticles?.[group]?.[label];
+      if (!content) return;
+      submenuArticleTitle.textContent = label;
+      submenuArticleText.textContent = content;
+      submenuArticle.classList.remove("hidden");
+      if (shouldScroll) submenuArticle.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    async function loadHomepageSettings() {
+      try {
+        const cached = JSON.parse(localStorage.getItem(homepageSettingsCacheKey) || "null");
+        if (cached && typeof cached === "object") {
+          applyHomepageSettings(cached);
+        }
+      } catch {}
+      try {
+        const snapshot = await getDoc(homepageSettingsRef);
+        const cloudSettings = snapshot.exists() ? snapshot.data() : defaultHomepageSettings;
+        applyHomepageSettings(cloudSettings);
+        localStorage.setItem(homepageSettingsCacheKey, JSON.stringify(currentHomepageSettings));
+      } catch (error) {
+        if (!localStorage.getItem(homepageSettingsCacheKey)) {
+          applyHomepageSettings(defaultHomepageSettings);
+        }
+        console.warn("Homepage settings unavailable", error);
+      }
+    }
+
+    protectedLinks.forEach((link) => {
+      link.addEventListener("click", (event) => {
+        if (auth.currentUser) return;
+        event.preventDefault();
+        window.location.href = loginUrl;
+      });
+    });
+
+    articleTabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        showArticleSection(tab.dataset.articleTab);
+      });
+    });
+    showArticleSection("methods");
+
+    await loadHomepageSettings();
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        rememberUnifiedLogin(null);
+        setProtectedLinksEnabled(false);
+        setLandingAuthLinks(null);
+        return;
+      }
+      rememberUnifiedLogin(user);
+      setProtectedLinksEnabled(true);
+      setLandingAuthLinks(user);
+    });
+  </script>
+</body>
+</html>

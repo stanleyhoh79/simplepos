@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>个人资料完整档案</title>
+  <link rel="stylesheet" href="./styles.css?v=20260724-4">
+</head>
+<body>
+  <main class="page-shell">
+    <section class="hero">
+      <p class="eyebrow">简单POS 顾客自助档案</p>
+      <h1>个人资料完整档案</h1>
+      <p>请先从简单系统主页完成统一 Google 登录。会员只填写自己的资料，完成后会进入会员中心查阅与更新。</p>
+      <p id="authStatus" class="status step-status" role="status">正在检查登录状态...</p>
+    </section>
+
+    <form id="customerIntakeForm" class="intake-form">
+      <nav class="step-progress" aria-label="填写步骤">
+        <button class="step-chip active" type="button" data-jump-step="1">1 主档</button>
+        <button class="step-chip" type="button" data-jump-step="2">2 计划</button>
+        <button class="step-chip" type="button" data-jump-step="3">3 身体</button>
+        <button class="step-chip" type="button" data-jump-step="4">4 健康</button>
+        <button class="step-chip" type="button" data-jump-step="5">5 习惯</button>
+        <button class="step-chip" type="button" data-jump-step="6">6 案例</button>
+        <button class="step-chip" type="button" data-jump-step="7">7 大使</button>
+        <button class="step-chip" type="button" data-jump-step="8">8 提交</button>
+      </nav>
+      <p id="stepStatus" class="status step-status" role="status">先完成主档资料。</p>
+
+      <section class="form-section" data-step="1">
+        <h2>1. 主档资料</h2>
+        <label>
+          姓名
+          <input name="name" required autocomplete="name" placeholder="例如：Chan Mei Ling">
+        </label>
+        <label>
+          电话 / WhatsApp
+          <input name="phone" required inputmode="tel" autocomplete="tel" placeholder="例如：0123456789">
+        </label>
+        <label>
+          Google 电邮（用于各系统自动关联）
+          <input name="email" type="email" autocomplete="email" required placeholder="例如：name@gmail.com">
+        </label>
+        <label>
+          身份证末四位（选填）
+          <input name="idLast4" maxlength="4" inputmode="numeric" placeholder="只填末四位">
+        </label>
+        <label>
+          所属分行
+          <select name="branchId" required>
+            <option value="branch-1">分行 1</option>
+            <option value="branch-2">分行 2</option>
+            <option value="hq">总店</option>
+          </select>
+        </label>
+        <label>
+          推荐码 / 介绍人（选填）
+          <input name="referralCode" autocomplete="off" placeholder="例如：S8042">
+        </label>
+        <label>
+          州属
+          <input name="state" placeholder="例如：Johor">
+        </label>
+        <label>
+          城市
+          <input name="city" placeholder="例如：Bukit Indah">
+        </label>
+        <div class="agreement-box wide">
+          <strong>网站条款与条件确认</strong>
+          <p>为减少重复操作，会员在建立个人资料主档时，同时确认网站条款、健康提示、个人资料保护通知与电子记录。确认后，SimplePay 与简单联盟系统会直接关联此会员主档。</p>
+          <details class="agreement-details">
+            <summary>查看重点条款</summary>
+            <div class="agreement-text compact-terms">
+              <h3>一、适用范围</h3>
+              <ol>
+                <li>本条款适用于使用 HOHS ENTERPRISE 网站、报名、购买、付款、打卡及参加相关计划。</li>
+                <li>健康筛查表、个人资料保护通知、订单条件、案例授权及营销联盟协议可一并适用。</li>
+                <li>提交资料或订单前，应确认服务内容、价格、周期、付款方式及相关条件。</li>
+              </ol>
+              <h3>二、健康与计划说明</h3>
+              <ol>
+                <li>本计划属于日常饮食与健康管理，不是医疗诊断或治疗。</li>
+                <li>其他高风险健康情况一律不接受参与计划；如有疑问，请先咨询医生。</li>
+                <li>个人结果因人而异，不保证减重、疾病改善或永久效果。</li>
+              </ol>
+              <h3>三、付款、取消与退款</h3>
+              <ol>
+                <li>订单、付款、收据、取消与退款以系统记录及付款前展示条件为准。</li>
+                <li>成果退款并非无条件退款，可能需要完整打卡、测量、安全暂停与付款记录。</li>
+              </ol>
+              <h3>四、个人资料与电子记录</h3>
+              <ol>
+                <li>资料将用于报名、安全筛查、服务跟进、付款、退款、投诉、会计与法定记录。</li>
+                <li>电子记录可能包括条款版本、勾选、姓名、电邮、提交时间及必要系统日志。</li>
+                <li>可通过 017-6313216 或 hohse888@gmail.com 查询或更正个人资料。</li>
+              </ol>
+            </div>
+          </details>
+          <label class="check-row">
+            <input name="websiteTermsAccepted" type="checkbox" required>
+            我已阅读并同意网站条款与条件、健康提示、个人资料保护通知及电子记录。
+          </label>
+          <label class="check-row">
+            <input name="websiteTermsOwnDecision" type="checkbox" required>
+            所有资料与确认由本人决定；工作人员可以协助阅读或操作，但不会代替本人同意。
+          </label>
+        </div>
+      </section>
+
+      <section class="form-section" data-step="2">
+        <h2>2. 计划资料</h2>
+        <label>
+          当前填写类型
+          <select name="formType" required>
+            <option value="profile">首次建立档案</option>
+            <option value="progress">进度更新</option>
+            <option value="completion">阶段成果确认</option>
+            <option value="support">需要工作人员协助</option>
+          </select>
+        </label>
+        <label>
+          当前配套 / 计划
+          <input name="packageName" value="极简养生减脂计划 第一阶段 18天 RM180">
+        </label>
+        <label>
+          开始日期
+          <input name="startDate" type="date">
+        </label>
+        <label>
+          目标完成日期
+          <input name="targetDate" type="date">
+        </label>
+        <label class="wide">
+          个人目标
+          <textarea name="goal" rows="3" placeholder="例如：改善饮食习惯、体重管理、维持状态、提升精神"></textarea>
+        </label>
+      </section>
+
+      <section class="form-section grid" data-step="3">
+        <h2>3. 基线身体数据</h2>
+        <label>
+          目前体重（kg）
+          <input name="weight" type="number" min="0" step="0.1" inputmode="decimal">
+        </label>
+        <label>
+          腰围（cm）
+          <input name="waist" type="number" min="0" step="0.1" inputmode="decimal">
+        </label>
+        <label>
+          身高（cm，选填）
+          <input name="height" type="number" min="0" step="0.1" inputmode="decimal">
+        </label>
+        <label>
+          体脂肪（%，选填）
+          <input name="bodyFatPct" type="number" min="0" max="100" step="0.1" inputmode="decimal">
+          <small>成人一般参考：男性约 10–20%，女性约 18–28%。</small>
+        </label>
+        <label>
+          内脏脂肪等级（选填）
+          <input name="visceralFatLevel" type="number" min="0" step="1" inputmode="numeric">
+          <small>常见体脂秤一般以 1–9 为参考正常范围，请以设备说明为准。</small>
+        </label>
+        <label>
+          骨量（kg，选填）
+          <input name="boneMassKg" type="number" min="0" step="0.1" inputmode="decimal">
+          <small>没有统一目标值，会受性别、身高和体重影响；以设备同龄参考为准。</small>
+        </label>
+        <label>
+          基础代谢率（kcal/日，选填）
+          <input name="basalMetabolicRateKcal" type="number" min="0" step="1" inputmode="numeric">
+          <small>没有统一理想数值，会随年龄、性别、身高和体重变化。</small>
+        </label>
+        <label>
+          骨骼肌率（%，选填）
+          <input name="skeletalMusclePct" type="number" min="0" max="100" step="0.1" inputmode="decimal">
+          <small>成人一般参考：男性约 33–39%，女性约 24–30%。</small>
+        </label>
+        <label>
+          体水分（%，选填）
+          <input name="bodyWaterPct" type="number" min="0" max="100" step="0.1" inputmode="decimal">
+          <small>成人一般参考：男性约 50–65%，女性约 45–60%。</small>
+        </label>
+        <p class="wide muted-note">这是当前身体测量快照，不是减重目标。提交后系统会建立第一条「基线测量」记录，未来每周测量会续接在同一份记录列表中。以上范围仅作健康管理参考，不作医疗诊断。</p>
+      </section>
+
+      <section class="form-section" data-step="4">
+        <h2>4. 健康安全筛查</h2>
+        <label class="check-row"><input name="hypertension" type="checkbox"> 高血压</label>
+        <label class="check-row"><input name="hyperlipidemia" type="checkbox"> 高血脂</label>
+        <label class="check-row"><input name="highBloodSugar" type="checkbox"> 高血糖</label>
+        <label class="check-row"><input name="highCholesterol" type="checkbox"> 高胆固醇</label>
+        <label class="check-row"><input name="highUricAcid" type="checkbox"> 高尿酸</label>
+        <label class="check-row"><input name="allergy" type="checkbox"> 有过敏</label>
+        <label class="wide">
+          健康说明 / 需要工作人员注意
+          <textarea name="healthNote" rows="4" placeholder="请注明以上项目的情况、过敏来源或正在注意的事项。其他高风险健康情况一律不接受参与计划，请先咨询医生。"></textarea>
+        </label>
+      </section>
+
+      <section class="form-section grid" data-step="5">
+        <h2>5. 基础生活习惯</h2>
+        <label>
+          睡眠
+          <select name="sleep">
+            <option value="">未填写</option>
+            <option value="good">良好</option>
+            <option value="average">普通</option>
+            <option value="poor">不足</option>
+          </select>
+        </label>
+        <label>
+          饮水量
+          <select name="water">
+            <option value="">未填写</option>
+            <option value="low">偏少</option>
+            <option value="normal">正常</option>
+            <option value="high">充足</option>
+          </select>
+        </label>
+        <label>
+          饮食控制
+          <select name="diet">
+            <option value="">未填写</option>
+            <option value="stable">稳定执行</option>
+            <option value="partial">部分执行</option>
+            <option value="difficult">需要协助</option>
+          </select>
+        </label>
+        <p class="wide muted-note">每日体重、饮用、身体感觉与照片记录会在独立的“每日打卡”功能完成，这里只收集报名时的基础习惯。</p>
+      </section>
+
+      <section class="form-section" data-step="6">
+        <h2>6. 案例授权（独立选择，不默认生效）</h2>
+        <label class="check-row"><input name="casePublicConsent" type="checkbox"> 我同意公开使用我的成功案例资料</label>
+        <label class="check-row"><input name="allowName" type="checkbox"> 可使用姓名 / 昵称</label>
+        <label class="check-row"><input name="allowPhoto" type="checkbox"> 可使用照片 / 视频 / 前后对比</label>
+        <label class="check-row"><input name="allowBodyData" type="checkbox"> 可使用体重、腰围、打卡与成果数据</label>
+        <label class="check-row"><input name="allowAnonymous" type="checkbox"> 只允许匿名或去识别化使用</label>
+        <label class="wide">
+          案例授权备注
+          <textarea name="caseNote" rows="3" placeholder="例如：只可用于内部分享 / 可用于社交媒体 / 需先通知我"></textarea>
+        </label>
+      </section>
+
+      <section class="form-section" data-step="7">
+        <h2>7. 推广大使申请与联盟协议确认</h2>
+        <label class="check-row"><input name="ambassadorApply" type="checkbox"> 我有兴趣申请成为推广大使</label>
+        <label>
+          主要推广平台
+          <input name="platforms" placeholder="例如：Facebook、TikTok、WhatsApp、Instagram">
+        </label>
+        <label>
+          常用语言
+          <select name="language">
+            <option value="">未填写</option>
+            <option value="zh">中文</option>
+            <option value="bm">Bahasa Malaysia</option>
+            <option value="en">English</option>
+            <option value="multi">中 / BM / 英</option>
+          </select>
+        </label>
+        <label class="wide">
+          推广经验 / 备注
+          <textarea name="ambassadorNote" rows="3" placeholder="请简单说明推广经验、社群人数或想申请的原因。"></textarea>
+        </label>
+        <div class="agreement-box wide">
+          <strong>营销联盟协议同步确认</strong>
+          <p>勾选申请推广大使时，请在这里一并确认协议，无需再到简单联盟系统重复处理。</p>
+          <details class="agreement-details" open>
+            <summary>查看营销联盟协议内容</summary>
+            <div class="agreement-text">
+              <h3>一、身份与关系</h3>
+              <ol>
+                <li>本协议由 HOHS ENTERPRISE 与申请成为推广大使 / 联盟会员的人士订立。</li>
+                <li>推广大使以独立身份分享公司批准的计划、产品或服务，不是公司雇员、代理、经销商、合伙人或医疗专业人员。</li>
+                <li>未经公司书面授权，不得代表公司签约、收款、退款、修改价格、承诺疗效或接触后台资料。</li>
+              </ol>
+
+              <h3>二、推广与内容规则</h3>
+              <ol>
+                <li>推广内容必须真实，不得夸大、虚假、误导、冒充公司或贬损他人。</li>
+                <li>不得作医疗诊断、治疗声明、保证减脂结果、承诺特定公斤数 / 天数或发布未经批准的健康声称。</li>
+                <li>个人案例必须真实，并需取得独立案例授权；结果应说明因人而异。</li>
+                <li>如有广告、赠品、佣金、合作或利益关系，必须向顾客清楚披露。</li>
+                <li>只可使用公司批准的名称、商标、图片、说明、价格、免责内容和推广素材。</li>
+              </ol>
+
+              <h3>三、推荐归因、佣金与退款扣回</h3>
+              <ol>
+                <li>推荐交易以系统记录的有效推荐码、推荐链接或后台可验证记录为准。</li>
+                <li>有效交易通常指已付款、通过必要审核、未取消、未退款、未拒付、无欺诈或违规，并超过确认期的真实订单。</li>
+                <li>佣金、资格、结算日、最低付款额、确认期与可推广配套，以后台最新设置和公司审核为准。</li>
+                <li>退款、拒付、取消、折扣、税费、运费或不合资格金额不计入佣金基数。</li>
+                <li>已预付佣金对应订单后续退款、拒付或判定无效时，公司可从未来佣金中冲回。</li>
+                <li>收入取决于真实有效交易，不保证最低订单、佣金或收益。</li>
+              </ol>
+
+              <h3>四、个人资料与电子记录</h3>
+              <ol>
+                <li>公司可为申请审核、身份核实、联盟管理、推荐归因、佣金付款、会计、培训、合规监测、投诉与争议处理，处理必要个人资料。</li>
+                <li>电子确认记录可包括协议版本、勾选内容、输入姓名、确认时间、协助记录、电邮、设备浏览器资料及必要安全日志。</li>
+                <li>资料可能向获授权工作人员、付款或系统供应商、专业顾问及依法有权机关披露，并按服务、会计、争议及法定期限保存。</li>
+                <li>会员可联系公司查询、更正或提出个人资料请求。资料联络：017-6313216 / hohse888@gmail.com。</li>
+              </ol>
+
+              <h3>五、暂停、终止与法律</h3>
+              <ol>
+                <li>协议自公司核准并记录电子确认后生效，持续至任何一方终止。</li>
+                <li>任何一方可提前 7 天书面通知终止。</li>
+                <li>涉及虚假宣传、未经授权收款、资料滥用、欺诈、严重健康声称、知识产权侵权或违法行为时，公司可立即暂停链接、扣留待核实佣金或终止。</li>
+                <li>终止后须立即停止使用公司品牌和自称联盟会员；保密、知识产权、个人资料、佣金核算、责任及争议条款继续有效。</li>
+                <li>本协议受马来西亚法律管辖。双方应先诚信协商；协商不成，可向马来西亚有管辖权的法院寻求解决。</li>
+              </ol>
+            </div>
+          </details>
+          <label class="check-row"><input name="affiliateAgreementAccepted" type="checkbox"> 我已阅读并同意以上营销联盟协议内容</label>
+          <label>
+            电子签名（输入本人姓名）
+            <input name="affiliateAgreementSignature" autocomplete="name" placeholder="申请推广大使时填写">
+          </label>
+        </div>
+      </section>
+
+      <section class="form-section final-section" data-step="8">
+        <h2>8. 确认提交</h2>
+      <section class="notice">
+        <strong>个人资料保护通知 / PDPA Notice</strong>
+        <p>本资料用于客户服务、计划执行、进度追踪、付款与售后跟进。敏感健康资料只用于协助判断是否适合继续计划，不作为医疗诊断。你可联系店方要求更正或撤回部分授权。</p>
+        <p>This information is used for customer service, plan follow-up, payment support and progress records. Health-related information is used for service assistance only and is not medical advice.</p>
+      </section>
+
+      <label class="agree">
+        <input name="pdpaConsent" type="checkbox" required>
+        我确认以上资料真实，并同意店方根据个人资料保护通知处理资料与进行服务跟进。
+      </label>
+
+      <button id="submitBtn" type="submit">提交完整档案</button>
+      <p id="formStatus" class="status" role="status">填写完成后点击提交。</p>
+      </section>
+    </form>
+
+    <section id="submitResult" class="result-panel" hidden>
+      <div>
+        <p class="eyebrow">提交成功</p>
+        <h2>个人资料档案已建立</h2>
+        <p>资料已经保存。工作人员可以根据这份主档继续跟进计划、SimplePay、简单联盟与会员资料。</p>
+      </div>
+      <dl class="result-list">
+        <div>
+          <dt>档案编号</dt>
+          <dd id="resultFileNumber">-</dd>
+        </div>
+        <div>
+          <dt>会员</dt>
+          <dd id="resultCustomerName">-</dd>
+        </div>
+        <div>
+          <dt>电话</dt>
+          <dd id="resultPhone">-</dd>
+        </div>
+        <div>
+          <dt>Google 电邮</dt>
+          <dd id="resultEmail">-</dd>
+        </div>
+        <div>
+          <dt>最近更新时间</dt>
+          <dd id="resultUpdatedAt">-</dd>
+        </div>
+        <div>
+          <dt>更新账号</dt>
+          <dd id="resultUpdatedBy">-</dd>
+        </div>
+        <div>
+          <dt>条款确认</dt>
+          <dd>已同步确认网站条款与条件</dd>
+        </div>
+      </dl>
+      <div class="result-actions">
+        <a class="button-link secondary-link" href="../member/index.html#profileForm">更新个人资料</a>
+        <a class="button-link" href="../member/index.html">进入会员中心</a>
+        <a class="button-link secondary-link" href="../index.html">返回系统首页</a>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./script.js?v=20260725-1"></script>
+</body>
+</html>
