@@ -28,7 +28,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
 const STORAGE_KEY = "amsystemFirebaseFallback";
-const APP_VERSION = "20260802-k5";
+const APP_VERSION = "20260803-k6";
 const URL_PARAMS = new URLSearchParams(location.search);
 const OPEN_ADMIN_FROM_PORTAL = URL_PARAMS.get("admin") === "1";
 const PUBLIC_SITE_URL = "https://stunleyhoh001.github.io/simplesystem/";
@@ -2385,6 +2385,14 @@ async function callConfirmOrderFunction(orderId, reviewNote = "") {
   return confirmOrderFunction({ orderId, reviewNote });
 }
 
+
+async function callRefundAffiliateOrderFunction(orderId, refundReference, reason = "") {
+  const { getFunctions, httpsCallable } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js");
+  const functions = getFunctions(app, "asia-southeast1");
+  const refundFunction = httpsCallable(functions, "refundAffiliateOrder");
+  return refundFunction({ orderId, refundReference, reason });
+}
+
 async function callSyncSimplePayPointsFunction() {
   const { getFunctions, httpsCallable } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js");
   const functions = getFunctions(app, "asia-southeast1");
@@ -3467,7 +3475,7 @@ function renderAdminOrders() {
     const actions = order.status === "pending"
       ? `<button class="link" data-confirm-order="${order.id}">确认付款</button><button class="link" data-cancel-order="${order.id}">取消订单</button>`
       : order.status === "paid"
-        ? `<button class="link" data-recalc-order="${order.id}">重算奖励</button>`
+        ? `<button class="link danger-link" data-refund-order="${order.id}">退款</button><button class="link" data-recalc-order="${order.id}">重算奖励</button>`
         : "";
     const proofHref = order.proofUrl || order.proofInlineData || "";
     const proofLink = proofHref ? ` / <a class="link" href="${proofHref}" target="_blank" rel="noopener">查看凭证</a>` : "";
@@ -5545,6 +5553,74 @@ document.body.addEventListener("click", async (event) => {
     await saveState();
     renderAll();
     toast("订单已取消");
+    return;
+  }
+
+
+  const refundOrder = event.target.closest("[data-refund-order]");
+  if (refundOrder) {
+    if (!requireAdmin()) return;
+    const order = state.orders.find((item) => item.id === refundOrder.dataset.refundOrder);
+    if (!order || order.status !== "paid") return toast("只有已支付订单可以退款");
+
+    const refundReference = window.prompt(
+      "请输入退款参考号（必填，例如银行退款编号或现金退款收据号）",
+      order.refundReference || ""
+    );
+    if (refundReference === null) return;
+    if (!refundReference.trim()) return toast("必须填写退款参考号");
+
+    const reason = window.prompt(
+      "请输入退款原因（必填）",
+      order.refundReason || "会员申请退款"
+    );
+    if (reason === null) return;
+    if (!reason.trim()) return toast("必须填写退款原因");
+
+    const preview = [
+      `确认退款订单：${order.id}`,
+      `金额：${money(order.amount)}`,
+      `扣回积分：${points(order.points)}`,
+      `退款参考号：${refundReference.trim()}`,
+      `原因：${reason.trim()}`,
+      "",
+      "如会员积分不足或奖励已经释放，系统会转为“退款待复核”，不会强行扣成负数。",
+      "确定继续吗？",
+    ].join("\n");
+    if (!window.confirm(preview)) return;
+
+    try {
+      const response = await callRefundAffiliateOrderFunction(
+        order.id,
+        refundReference.trim(),
+        reason.trim()
+      );
+      const result = response?.data || {};
+
+      try {
+        state = await loadState();
+        renderAll();
+      } catch (refreshError) {
+        console.warn("Refund completed, but refreshing the latest cloud state failed.", refreshError);
+        setSyncStatusText(
+          `退款已处理，但页面刷新资料失败：${refreshError?.code || refreshError?.name || "unknown"}`
+        );
+      }
+
+      if (result.status === "review-required") {
+        toast("退款已转入人工复核：积分不足或奖励已经释放，相关奖励已冻结");
+      } else if (result.duplicate) {
+        toast("该订单此前已经完成退款，无需重复处理");
+      } else {
+        toast(`退款完成，已扣回 ${points(result.pointsReversed || order.points)}，配套与奖励已同步`);
+      }
+    } catch (error) {
+      console.error(error);
+      const code = error?.code || "unknown";
+      const message = error?.message || "服务端退款失败";
+      toast(`退款失败：${code}。订单状态未改变，请勿手工扣积分。`);
+      setSyncStatusText(`退款处理失败：${message}`);
+    }
     return;
   }
 
