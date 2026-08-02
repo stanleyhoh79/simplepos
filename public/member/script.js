@@ -38,6 +38,7 @@ const accountSub = document.querySelector("#accountSub");
 const memberAvatar = document.querySelector("#memberAvatar");
 const memberLogoutBtn = document.querySelector("#memberLogoutBtn");
 const measurementHistory = document.querySelector("#measurementHistory");
+const dashboardView = document.querySelector("#dashboardView");
 const measurementRecords = document.querySelector("#measurementRecords");
 
 let currentUser = null;
@@ -328,13 +329,25 @@ async function loadPage(user) {
   currentUser = user;
   currentProfile = null;
   currentProfileId = "";
+
   profileView.hidden = true;
   emptyState.hidden = true;
+  dashboardView.hidden = true;
+  measurementHistory.hidden = true;
+
   setAccount(user);
 
   if (!user?.email) {
     setStatus(authStatus, "未登录。请先回到简单系统首页完成统一 Google 登录。", true);
     emptyState.hidden = false;
+    return;
+  }
+
+  const view = new URLSearchParams(window.location.search).get("view");
+
+  if (view === "dashboard") {
+    dashboardView.hidden = false;
+    setStatus(authStatus, "欢迎回到会员中心");
     return;
   }
 
@@ -432,6 +445,24 @@ memberLogoutBtn.addEventListener("click", async () => {
     setStatus(authStatus, `退出失败：${error.code || error.message || "请稍后重试"}`, true);
     memberLogoutBtn.disabled = false;
   }
+});
+
+// Dashboard 快捷入口
+document.querySelectorAll("[data-dashboard-module]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const module = button.dataset.dashboardModule;
+    if (module && window.parent !== window) {
+      window.parent.postMessage(
+        { type: "simplepos-open-module", module },
+        window.location.origin
+      );
+    }
+  });
+});
+
+// 预约服务占位
+document.querySelector("#dashboardBookingBtn")?.addEventListener("click", () => {
+  alert("功能准备中");
 });
 
 onAuthStateChanged(auth, (user) => {

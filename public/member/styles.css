@@ -362,3 +362,71 @@ button:disabled {
     font-size: 20px;
   }
 }
+
+/* ===== Dashboard 视图 ===== */
+.dashboard-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.dashboard-status-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f3fbf8;
+}
+
+.dashboard-status-card span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.dashboard-status-card strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.dashboard-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.dashboard-quick-btn {
+  min-height: 88px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  font-weight: 800;
+}
+
+.dashboard-quick-btn .dash-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.dashboard-quick-btn strong {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.dashboard-profile-link {
+  margin-top: 8px;
+}
+
+.dashboard-profile-link .button {
+  width: 100%;
+}
+
+@media (max-width: 360px) {
+  .dashboard-status-grid,
+  .dashboard-quick-grid {
+    grid-template-columns: 1fr;
+  }
+}

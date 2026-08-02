@@ -609,9 +609,9 @@
 
     const modules = {
       home: {
-        title: "",
-        hint: "",
-        url: ""
+        title: "会员中心",
+        hint: "今日状态、快捷入口与配套进度",
+        url: `./member/index.html?embed=1&view=dashboard&v=${moduleVersion}`
       },
       experience: {
         title: "极简养生计划体验版",
@@ -651,7 +651,7 @@
       profile: {
         title: "账户资料",
         hint: "会员主档与账户信息",
-        url: `./member/index.html?embed=1&v=${moduleVersion}`
+        url: `./member/index.html?embed=1&view=profile&v=${moduleVersion}`
       },
       customer: {
         title: "个人资料",
@@ -822,13 +822,13 @@
       refreshAffiliateButton();
     }
 
-    function setModule(moduleName, replace = false) {
+    function setModule(moduleName, replace = false, forceReload = false) {
       if (adminModules.has(moduleName) && !currentIsAdmin) {
         moduleName = "member";
         replace = true;
       }
       const module = modules[moduleName] || modules.member;
-      if (activeModuleName === moduleName && frame.getAttribute("src") === module.url) return;
+      if (!forceReload && activeModuleName === moduleName && frame.getAttribute("src") === module.url) return;
 
       activeModuleName = moduleName;
       contentTitle.textContent = module.title;
@@ -928,9 +928,12 @@
 
     window.addEventListener("message", (event) => {
       if (event.origin !== window.location.origin) return;
-      if (event.data?.type !== "simplepos-experience-state") return;
-      affiliateUnlocked = true;
-      refreshAffiliateButton();
+      if (event.data?.type === "simplepos-experience-state") {
+        affiliateUnlocked = true;
+        refreshAffiliateButton();
+      } else if (event.data?.type === "simplepos-open-module" && event.data?.module) {
+        setModule(event.data.module, false, true);
+      }
     });
 
     window.addEventListener("popstate", () => {
