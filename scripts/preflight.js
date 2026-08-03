@@ -25,7 +25,8 @@ function includesAll(file, tokens) {
 check(
   includesAll("public/index.html", [
     "onAuthStateChanged",
-    "simplepos-homepage-settings-v2",
+    "simplepos-homepage-settings-v3",
+    "homepagePublished",
     "极简养生计划",
     "进入会员系统",
     "./login.html?next=./system.html?module=home",
@@ -96,7 +97,6 @@ check(
   ]) && includesAll("public/admin-homepage.html", [
     "logoFile",
     "heroImageFile",
-    "data-drink-file",
     "shrink",
     "logoDataUrl",
     "imageDataUrl"
@@ -117,13 +117,31 @@ check(
       "processEditors",
       "drinkEditors",
       "faqEditors",
-      "repeatEditors",
       "read()",
       "settingsForm",
       "portalSettings",
-      "homepage"
+      "homepageDraft"
     ]),
   "Homepage content blocks stay synchronized with the administrator editor"
+);
+
+check(
+  includesAll("public/index.html", [
+    "homepagePublished",
+    "simplepos-homepage-draft-preview",
+    'get("preview")==="1"'
+  ])
+    && includesAll("public/admin-homepage.html", [
+      "homepageDraft",
+      "homepagePublished",
+      "homepagePrevious",
+      "writeBatch",
+      "publishBtn",
+      "restoreBtn",
+      "保存草稿",
+      "正式发布"
+    ]),
+  "Homepage supports draft preview, atomic publish, and previous-version restore"
 );
 
 check(
