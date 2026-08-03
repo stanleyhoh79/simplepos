@@ -11,5 +11,6 @@ module.exports = {
   ...require("./affiliate"),
   ...require("./checkin"),
   ...require("./member"),
-  ...require("./member-read")
+  ...require("./member-read"),
+  ...require("./homepage")
 };

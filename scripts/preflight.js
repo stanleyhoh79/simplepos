@@ -134,14 +134,64 @@ check(
     && includesAll("public/admin-homepage.html", [
       "homepageDraft",
       "homepagePublished",
-      "homepagePrevious",
-      "writeBatch",
+      "httpsCallable",
+      "saveHomepageDraft",
+      "publishHomepage",
+      "restoreHomepageVersion",
       "publishBtn",
       "restoreBtn",
       "保存草稿",
       "正式发布"
+    ])
+    && !read("public/admin-homepage.html").includes("writeBatch"),
+  "Homepage supports draft preview and callable-based publish and restore"
+);
+
+check(
+  includesAll("functions/homepage.js", [
+    "saveHomepageDraft",
+    "publishHomepage",
+    "restoreHomepageVersion",
+    "homepageAdminLogs",
+    "homepageDraft",
+    "homepagePublished",
+    "homepagePrevious",
+  ])
+    && includesAll("functions/index.js", [
+      "...require(\"./homepage\")",
     ]),
-  "Homepage supports draft preview, atomic publish, and previous-version restore"
+  "Homepage cloud functions validate and own draft, publish, restore, and audit writes"
+);
+
+check(
+  includesAll("public/index.html", [
+    "function escapeHtml",
+    "function safeLink",
+    "function safeImageData",
+    "javascript:",
+    "vbscript:",
+    "data:text/html",
+  ]),
+  "Public homepage escapes dynamic content and rejects unsafe links and images"
+);
+
+check(
+  includesAll("firestore.rules", [
+    "match /portalSettings/{settingId}",
+    'settingId == "homepagePublished"',
+    'settingId == "homepage"',
+    'settingId == "homepageDraft"',
+    'settingId == "homepagePrevious"',
+    "&& posIsAdmin();",
+    'settingId != "homepagePublished"',
+    'settingId != "homepage"',
+    'settingId != "homepageDraft"',
+    'settingId != "homepagePrevious"',
+    "match /homepageAdminLogs/{logId}",
+    "allow read: if posIsAdmin();",
+    "allow create, update, delete: if false;",
+  ]),
+  "Homepage settings and audit logs enforce public read and server-only write boundaries"
 );
 
 check(
