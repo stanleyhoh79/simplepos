@@ -148,6 +148,14 @@ check(
 );
 
 check(
+  includesAll("public/admin-homepage.html", [
+    "saveHomepageDraftCall({settings:next})",
+    "publishHomepageCall({settings:next})",
+  ]),
+  "Homepage callable payload wraps settings correctly"
+);
+
+check(
   includesAll("functions/homepage.js", [
     "saveHomepageDraft",
     "publishHomepage",
