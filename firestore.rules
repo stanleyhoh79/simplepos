@@ -480,8 +480,31 @@ service cloud.firestore {
         }
 
         match /portalSettings/{settingId} {
-          allow read: if true;
-          allow create, update, delete: if posIsAdmin();
+          // Public homepage documents remain readable by visitors.
+          allow read: if settingId == "homepagePublished"
+            || settingId == "homepage"
+            || (
+              settingId != "homepageDraft"
+              && settingId != "homepagePrevious"
+            );
+
+          // Draft and previous versions are private to the administrator.
+          allow read: if (
+            settingId == "homepageDraft"
+            || settingId == "homepagePrevious"
+          ) && posIsAdmin();
+
+          // Homepage lifecycle documents are server-managed by Cloud Functions.
+          allow create, update, delete: if settingId != "homepagePublished"
+            && settingId != "homepage"
+            && settingId != "homepageDraft"
+            && settingId != "homepagePrevious"
+            && posIsAdmin();
+        }
+
+        match /homepageAdminLogs/{logId} {
+          allow read: if posIsAdmin();
+          allow create, update, delete: if false;
         }
     
         match /stockAdjustments/{adjustmentId} {
