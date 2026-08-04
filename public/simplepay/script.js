@@ -4100,6 +4100,7 @@ function ensureOverlay() {
 
 function openDialog(title, body, confirmText = "确认", onConfirm = closeDialog) {
   const overlay = ensureOverlay();
+  overlay.querySelector(".dialog")?.classList.remove("scanner-dialog");
   overlay.querySelector("#dialog-title").textContent = title;
   overlay.querySelector("#dialog-body").innerHTML = sanitizeHtml(body);
   const confirm = overlay.querySelector(".dialog-confirm");
@@ -4128,6 +4129,29 @@ function closeDialog() {
   const overlay = document.querySelector("#action-overlay");
   if (overlay) overlay.classList.add("hidden");
 }
+
+let scannerLayoutFrame = 0;
+
+function updateScannerDialogLayout() {
+  const dialog = document.querySelector("#action-overlay .dialog.scanner-dialog");
+  const scannerBox = dialog?.querySelector(".scanner-box");
+  if (!scannerBox) return;
+  const narrowLandscape = window.innerWidth <= 900 && window.innerHeight <= 540;
+  const phonePortrait = window.innerWidth <= 767 && window.matchMedia("(orientation: portrait)").matches;
+  const aspect = phonePortrait ? "1 / 1" : narrowLandscape ? "4 / 3" : "16 / 9";
+  scannerBox.style.aspectRatio = aspect;
+}
+
+function scheduleScannerDialogLayout() {
+  if (scannerLayoutFrame) cancelAnimationFrame(scannerLayoutFrame);
+  scannerLayoutFrame = requestAnimationFrame(() => {
+    scannerLayoutFrame = 0;
+    updateScannerDialogLayout();
+  });
+}
+
+window.addEventListener("resize", scheduleScannerDialogLayout);
+window.addEventListener("orientationchange", scheduleScannerDialogLayout);
 
 function showToast(message) {
   let toast = document.querySelector("#toast");
@@ -4815,6 +4839,8 @@ function handleUserButton(button) {
       "确认付款",
       confirmScanPayment
     );
+    document.querySelector("#action-overlay .dialog")?.classList.add("scanner-dialog");
+    scheduleScannerDialogLayout();
     document.querySelector("#start-scanner")?.addEventListener("click", startScanner);
     document.querySelector("#qr-image-input")?.addEventListener("change", async (event) => {
       const input = event.currentTarget;
@@ -6014,6 +6040,4 @@ onAuthStateChanged(auth, async (user) => {
   }
   await enterRole(activeRole);
 });
-
-
 
