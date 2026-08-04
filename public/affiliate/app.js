@@ -2418,6 +2418,14 @@ async function callSyncSimplePayPointsFunction() {
   return syncFunction({});
 }
 
+async function callDeleteAffiliateTestUserFunction(userId, confirmation) {
+  const { getFunctions, httpsCallable } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js");
+  const functions = getFunctions(app, "asia-southeast1");
+  const deleteUserFunction = httpsCallable(functions, "deleteAffiliateTestUser");
+  const result = await deleteUserFunction({ userId, confirmation });
+  return result.data;
+}
+
 function withTimeout(promise, ms, message) {
   return Promise.race([
     promise,
@@ -3365,7 +3373,10 @@ function renderAdminUsers() {
     const payoutRisk = sharedUsers.length ? `<span class="risk-line">共享账号 ${sharedUsers.length}</span>` : "-";
     const missingFields = profileMissingFields(user);
     const profileRisk = missingFields.length ? `<span class="profile-line">缺：${missingFields.join("、")}</span>` : "";
-    return `<tr><td>${user.name}${profileRisk}</td><td>${user.account}</td><td>${user.phone || "-"}</td><td>${user.inviteCode}</td><td>${referrer?.name || "无"}</td><td>${points(user.points)}</td><td><span class="tag ${statusClass}">${statusLabel}</span></td><td>${directReferralCount(user.id)} / 开放</td><td>${points(user.repeatCredits || 0)}</td><td>${payoutRisk}</td><td><span class="tag ${user.frozen ? "frozen" : "active"}">${user.frozen ? "已冻结" : "正常"}</span></td><td><button class="link" data-user-detail="${user.id}">详情</button><button class="link" data-admin-change-referrer="${user.id}">调整推荐人</button><button class="link" data-export-user-records="${user.id}">导出</button><button class="link" data-freeze-user="${user.id}">${user.frozen ? "解冻" : "冻结"}</button></td></tr>`;
+    const deleteTestUserButton = isAdminAffiliateUser(user)
+      ? ""
+      : `<button class="link" data-delete-test-user="${user.id}">删除测试用户</button>`;
+    return `<tr><td>${user.name}${profileRisk}</td><td>${user.account}</td><td>${user.phone || "-"}</td><td>${user.inviteCode}</td><td>${referrer?.name || "无"}</td><td>${points(user.points)}</td><td><span class="tag ${statusClass}">${statusLabel}</span></td><td>${directReferralCount(user.id)} / 开放</td><td>${points(user.repeatCredits || 0)}</td><td>${payoutRisk}</td><td><span class="tag ${user.frozen ? "frozen" : "active"}">${user.frozen ? "已冻结" : "正常"}</span></td><td><button class="link" data-user-detail="${user.id}">详情</button><button class="link" data-admin-change-referrer="${user.id}">调整推荐人</button><button class="link" data-export-user-records="${user.id}">导出</button><button class="link" data-freeze-user="${user.id}">${user.frozen ? "解冻" : "冻结"}</button>${deleteTestUserButton}</td></tr>`;
   }).join("") || `<tr><td colspan="12">没有符合条件的用户</td></tr>`);
 }
 
@@ -5855,6 +5866,30 @@ document.querySelector("#resetBtn").addEventListener("click", async () => {
     await deleteLegacyDemoUsersFromFirestore(demoUsers);
   } catch (error) {
     toast(error.message || "删除演示用户失败，已停止清空操作");
+    return;
+  }
+
+  const deleteTestUser = event.target.closest("[data-delete-test-user]");
+  if (deleteTestUser) {
+    if (!requireAdmin()) return;
+    const user = findUser(deleteTestUser.dataset.deleteTestUser);
+    if (!user) return toast("找不到要删除的用户");
+    if (isAdminAffiliateUser(user)) return toast("管理员账号不能删除");
+    const confirmation = window.prompt(
+      `将删除联盟业务资料，不会删除 Firebase Authentication 账号。\n\n姓名：${user.name || "-"}\n账号：${user.account || "-"}\n手机：${user.phone || "-"}\n用户ID：${user.id}\n\n请输入 DELETE AFFILIATE TEST USER 确认`,
+    );
+    if (confirmation !== "DELETE AFFILIATE TEST USER") {
+      toast("确认文本不正确，已取消删除");
+      return;
+    }
+    try {
+      await callDeleteAffiliateTestUserFunction(user.id, confirmation);
+      state = await loadState();
+      renderAll();
+      toast("测试用户及关联联盟资料已删除");
+    } catch (error) {
+      toast(`删除测试用户失败：${error.message || error.code || "未知错误"}`);
+    }
     return;
   }
   purgeLegacyDemoUsers(state, demoUsers);

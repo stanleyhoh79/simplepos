@@ -208,6 +208,76 @@ function createAdminLog(tx, action, target, detail, adminEmail) {
   });
 }
 
+const AFFILIATE_DELETE_BATCH_SIZE = 400;
+
+async function deleteAffiliateDocumentsInBatches(documents) {
+  const uniqueDocuments = [...new Map(documents.map((item) => [item.ref.path, item])).values()];
+  let deleted = 0;
+  for (let index = 0; index < uniqueDocuments.length; index += AFFILIATE_DELETE_BATCH_SIZE) {
+    const batch = db.batch();
+    uniqueDocuments.slice(index, index + AFFILIATE_DELETE_BATCH_SIZE).forEach((item) => batch.delete(item.ref));
+    await batch.commit();
+    deleted += Math.min(AFFILIATE_DELETE_BATCH_SIZE, uniqueDocuments.length - index);
+  }
+  return deleted;
+}
+
+function isAdminAffiliateUserRecord(user) {
+  return [user && user.account, user && user.email]
+    .some((value) => ADMIN_EMAILS.includes(text(value).toLowerCase()));
+}
+
+exports.deleteAffiliateTestUser = onCall(async (request) => {
+  const adminEmail = assertAdmin(request);
+  const data = request.data || {};
+  const userId = safeExternalId(data.userId);
+  if (text(data.confirmation) !== "DELETE AFFILIATE TEST USER") {
+    throw new HttpsError("invalid-argument", "Confirmation text must exactly equal DELETE AFFILIATE TEST USER.");
+  }
+
+  const userRef = db.collection("amsystemUsers").doc(userId);
+  const userSnapshot = await userRef.get();
+  if (!userSnapshot.exists) throw new HttpsError("not-found", "Affiliate user not found.");
+  if (isAdminAffiliateUserRecord(userSnapshot.data())) {
+    throw new HttpsError("permission-denied", "Administrator accounts cannot be deleted.");
+  }
+
+  const [ordersSnapshot, rewardsByUserSnapshot, rewardsBySourceSnapshot, withdrawalsSnapshot, pointLogsSnapshot, repeatLogsSnapshot, referralsByReferrerSnapshot, referralsByInviteeSnapshot, inviteCodesSnapshot] = await Promise.all([
+    db.collection("amsystemOrders").where("userId", "==", userId).get(),
+    db.collection("amsystemRewards").where("userId", "==", userId).get(),
+    db.collection("amsystemRewards").where("sourceUserId", "==", userId).get(),
+    db.collection("amsystemWithdraws").where("userId", "==", userId).get(),
+    db.collection("amsystemPointLogs").where("userId", "==", userId).get(),
+    db.collection("amsystemRepeatCreditLogs").where("userId", "==", userId).get(),
+    db.collection("amsystemReferrals").where("referrerId", "==", userId).get(),
+    db.collection("amsystemReferrals").where("inviteeId", "==", userId).get(),
+    db.collection("amsystemInviteCodes").where("userId", "==", userId).get(),
+  ]);
+
+  const deleted = {
+    amsystemOrders: await deleteAffiliateDocumentsInBatches(ordersSnapshot.docs),
+    amsystemRewards: await deleteAffiliateDocumentsInBatches([...rewardsByUserSnapshot.docs, ...rewardsBySourceSnapshot.docs]),
+    amsystemWithdraws: await deleteAffiliateDocumentsInBatches(withdrawalsSnapshot.docs),
+    amsystemPointLogs: await deleteAffiliateDocumentsInBatches(pointLogsSnapshot.docs),
+    amsystemRepeatCreditLogs: await deleteAffiliateDocumentsInBatches(repeatLogsSnapshot.docs),
+    amsystemReferrals: await deleteAffiliateDocumentsInBatches([...referralsByReferrerSnapshot.docs, ...referralsByInviteeSnapshot.docs]),
+    amsystemInviteCodes: await deleteAffiliateDocumentsInBatches(inviteCodesSnapshot.docs),
+    amsystemUsers: await deleteAffiliateDocumentsInBatches([userSnapshot]),
+  };
+
+  const auditRef = db.collection("amsystemAdminLogs").doc();
+  await auditRef.set({
+    id: auditRef.id,
+    adminEmail,
+    action: "删除测试用户",
+    target: userId,
+    detail: JSON.stringify({ account: text(userSnapshot.data().account), deleted, firebaseAuthDeleted: false }),
+    createdAt: new Date().toISOString(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { userId, deleted };
+});
+
 function createReward(tx, payload) {
   const rewardRef = db.collection("amsystemRewards").doc();
   tx.set(rewardRef, {
