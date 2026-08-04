@@ -288,16 +288,34 @@ th { color: var(--muted); font-size: 12px; font-weight: 700; }
   box-shadow: 0 28px 80px rgba(16, 37, 30, .24); overflow: hidden;
 }
 .dialog.scanner-dialog {
-  width: min(92vw, 720px);
-  max-height: 90vh;
-  overflow-y: auto;
-  overflow-x: hidden;
+  width: min(92vw, 680px);
+  max-height: min(88dvh, 720px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .dialog-header, .dialog-actions {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 18px 20px; border-bottom: 1px solid var(--line);
 }
 .dialog-actions { border-top: 1px solid var(--line); border-bottom: 0; justify-content: flex-end; }
+.scanner-dialog .dialog-header { flex: 0 0 auto; }
+.scanner-dialog .dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+.scanner-dialog .dialog-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  flex: 0 0 auto;
+  background: var(--surface);
+}
+.scanner-dialog .dialog-actions button { min-height: 48px; }
 .dialog-close {
   width: 34px; height: 34px; border-radius: 8px; background: var(--surface-soft);
   color: var(--text); font-size: 22px; line-height: 1;
@@ -343,12 +361,16 @@ th { color: var(--muted); font-size: 12px; font-weight: 700; }
 .scanner-frame .scan-line { left: 0; right: 0; max-width: 100%; }
 .scanner-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .scanner-dialog #scan-result,
-.scanner-dialog .dialog-input { word-break: break-word; overflow-wrap: anywhere; }
+.scanner-dialog .dialog-input,
+.scanner-dialog .dialog-body { min-width: 0; word-break: break-word; overflow-wrap: anywhere; }
 @media (orientation: portrait) and (max-width: 767px) {
   .scanner-box { aspect-ratio: 1 / 1; }
 }
 @media (orientation: landscape) and (max-height: 540px) and (max-width: 900px) {
   .scanner-box { aspect-ratio: 4 / 3; }
+}
+@media (orientation: landscape) and (min-width: 768px) {
+  .scanner-dialog .scanner-box { max-height: 220px; aspect-ratio: 16 / 7; }
 }
 @media (max-width: 540px) {
   .action-overlay { padding: 12px; }
