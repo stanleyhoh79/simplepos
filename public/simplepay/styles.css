@@ -22,6 +22,9 @@ body {
 button { border: 0; cursor: pointer; font: inherit; min-height: 44px; }
 button:disabled { cursor: not-allowed; opacity: .55; }
 .hidden, .locked { display: none !important; }
+.member-profile-link { display: inline-flex; align-items: center; margin: 4px 0 10px; }
+.image-file-label { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.image-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
 [data-disabled-feature] { display: none !important; }
 .login-gateway {
   min-height: 100vh; padding: 42px; display: grid; align-content: center; gap: 26px;

@@ -208,7 +208,6 @@ let dynamicQrId = 6130;
 let toastTimer;
 let walletBalance = 0;
 let walletStatus = "active";
-let walletKycStatus = "unsubmitted";
 let usedCouponIds = [];
 let dailyUsage = { date: "", amount: 0 };
 let merchantStatus = "pending";
@@ -701,21 +700,11 @@ async function findBestMerchantRecord(user = currentUser, selfSnapshot = null) {
   return chooseMerchantRecord(candidates, user);
 }
 
-async function loadMemberProfileByEmail(email) {
-  const normalizedEmail = normalizeEmail(email);
-  if (!normalizedEmail) return null;
-  const snapshot = await getDocs(query(collection(db, "memberProfiles"), where("customer.email", "==", normalizedEmail)));
-  const profiles = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-  return profiles.sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0] || null;
-}
-
 async function loadMemberProfileForUser(user) {
-  const uid = clean(user?.uid);
-  if (uid) {
-    const snapshot = await getDoc(doc(db, "memberProfiles", `MP-${uid}`));
-    if (snapshot.exists()) return { id: snapshot.id, ...snapshot.data() };
-  }
-  return loadMemberProfileByEmail(user?.email);
+  if (!clean(user?.uid)) return null;
+  const result = await httpsCallable(cloudFunctions, "getMemberProfile")({});
+  const data = result?.data || {};
+  return data.profile ? { id: data.profileId || `MP-${user.uid}`, ...data.profile } : null;
 }
 
 async function refreshMemberProfile(user = currentUser) {
@@ -725,7 +714,28 @@ async function refreshMemberProfile(user = currentUser) {
     currentMemberProfile = null;
     console.warn("Could not load member profile.", error);
   }
+  updateMemberProfileStatus(currentMemberProfile);
   return currentMemberProfile;
+}
+
+function hasLinkedMemberProfile(profile = currentMemberProfile) {
+  const customer = profile?.customer || {};
+  return Boolean(profile?.id && clean(customer.name) && clean(customer.phone));
+}
+
+function updateMemberProfileStatus(profile = currentMemberProfile) {
+  const node = document.querySelector("#user-member-profile-status");
+  const details = document.querySelector("#user-member-profile-details");
+  const link = document.querySelector("#member-profile-link");
+  const linked = hasLinkedMemberProfile(profile);
+  if (node) node.textContent = linked ? "会员资料：已关联" : "会员资料：未完成";
+  if (details) {
+    const customer = profile?.customer || {};
+    details.textContent = linked
+      ? `姓名：${customer.name}｜手机：${customer.phone}`
+      : "请先在会员中心完善姓名和手机资料。";
+  }
+  if (link) link.classList.toggle("hidden", linked);
 }
 
 function createMerchantCode(user = currentUser, amount = "") {
@@ -991,24 +1001,6 @@ function kycStatusLabel(status) {
   if (status === "pending") return '<span class="tag warning">待审核</span>';
   if (status === "rejected") return '<span class="tag danger">已拒绝</span>';
   return '<span class="tag warning">未提交</span>';
-}
-
-function updateUserKycStatus(status = walletKycStatus) {
-  walletKycStatus = status || "unsubmitted";
-  const node = document.querySelector("#user-kyc-status");
-  if (node) {
-    const textMap = {
-      approved: "实名状态：已通过",
-      pending: "实名状态：待后台审核",
-      rejected: "实名状态：已拒绝，请重新提交",
-      unsubmitted: "实名状态：未提交",
-    };
-    node.textContent = textMap[walletKycStatus] || textMap.unsubmitted;
-  }
-  const button = document.querySelector("#submit-kyc-button");
-  if (button) {
-    button.textContent = walletKycStatus === "approved" ? "查看实名" : walletKycStatus === "pending" ? "查看申请" : "提交实名";
-  }
 }
 
 function renderAdminUsers(users = []) {
@@ -3014,40 +3006,6 @@ async function loadKycRequests() {
   renderKycRequests(kycRequestsCache);
 }
 
-async function submitKycRequest(fullName, idNumber, phone) {
-  if (!currentUser) throw new Error("请先登录用户账号");
-  if (walletStatus === "frozen") throw new Error("账户已被冻结，无法提交实名");
-  const requestId = currentUser.uid;
-  await setDoc(
-    doc(db, "kycRequests", requestId),
-    {
-      userId: currentUser.uid,
-      email: currentUser.email,
-      displayName: currentUser.displayName || "",
-      fullName,
-      idNumber,
-      phone,
-      status: "pending",
-      time: "刚刚",
-      createdAt: new Date().toISOString(),
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
-  await setDoc(
-    walletRef(),
-    {
-      kycStatus: "pending",
-      kycFullName: fullName,
-      kycIdNumber: idNumber,
-      kycPhone: phone,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
-  return requestId;
-}
-
 async function reviewKycRequest(requestId, approved) {
   const request = kycRequestsCache.find((item) => item.id === requestId);
   if (!request) throw new Error("找不到实名申请");
@@ -3747,7 +3705,6 @@ async function ensureWallet(user) {
       role: "user",
       transactions: [],
       status: "active",
-      kycStatus: "unsubmitted",
       dailyUsage: { date: todayKey(), amount: 0 },
       updatedAt: serverTimestamp(),
     });
@@ -3783,7 +3740,6 @@ async function attachWallet(user) {
     const data = snapshot.data() || {};
     setWalletBalance(data.balance || 0);
     walletStatus = data.status || "active";
-    updateUserKycStatus(data.kycStatus || "unsubmitted");
     usedCouponIds = Array.isArray(data.usedCouponIds) ? data.usedCouponIds : [];
     dailyUsage = data.dailyUsage?.date === todayKey() ? data.dailyUsage : { date: todayKey(), amount: 0 };
     userTransactions = Array.isArray(data.transactions) ? data.transactions : [];
@@ -4392,7 +4348,7 @@ async function startScanner() {
   }
 }
 
-async function scanQrFromImageFile(file) {
+async function scanQrFromImageFileLegacy(file) {
   const result = document.querySelector("#scan-result");
   if (!file) return;
   if (!("BarcodeDetector" in window)) {
@@ -4415,6 +4371,92 @@ async function scanQrFromImageFile(file) {
     showToast(payment.kind === "disabled-receive" ? "个人转账已停用" : "已从图片识别二维码");
   } catch (error) {
     if (result) result.textContent = `图片识别失败：${error.message || error.name}`;
+  }
+}
+
+async function createScaledQrBitmap(file) {
+  if (!file?.type?.startsWith("image/")) throw new Error("image-read-failed");
+  const source = await createImageBitmap(file);
+  const maxSide = 1600;
+  if (Math.max(source.width, source.height) <= maxSide) return source;
+  const scale = maxSide / Math.max(source.width, source.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(source.width * scale));
+  canvas.height = Math.max(1, Math.round(source.height * scale));
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) {
+    source.close?.();
+    throw new Error("image-read-failed");
+  }
+  context.drawImage(source, 0, 0, canvas.width, canvas.height);
+  source.close?.();
+  return createImageBitmap(canvas);
+}
+
+async function decodeQrWithLocalFallback(bitmap) {
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("browser-not-supported");
+  context.drawImage(bitmap, 0, 0);
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  if (typeof window.jsQR === "function") {
+    return window.jsQR(imageData.data, imageData.width, imageData.height)?.data || "";
+  }
+  if (window.QrScanner?.scanImage) {
+    return await window.QrScanner.scanImage(canvas, { returnDetailedScanResult: false });
+  }
+  throw new Error("browser-not-supported");
+}
+
+async function decodeQrFromImageBitmap(bitmap) {
+  const detectorAvailable = "BarcodeDetector" in window;
+  if (detectorAvailable) {
+    try {
+      const detector = new BarcodeDetector({ formats: ["qr_code"] });
+      const codes = await detector.detect(bitmap);
+      if (codes[0]?.rawValue) return codes[0].rawValue;
+    } catch (error) {
+      console.warn("BarcodeDetector image decode failed; trying local fallback.", error);
+    }
+  }
+  try {
+    return await decodeQrWithLocalFallback(bitmap);
+  } catch (error) {
+    if (detectorAvailable && error?.message === "browser-not-supported") {
+      throw new Error("no-qr-code");
+    }
+    throw error;
+  }
+}
+
+function qrImageErrorMessage(error) {
+  if (error?.message === "browser-not-supported") return "当前浏览器不支持图片二维码识别。请使用最新版 Chrome，或改用摄像头扫码。";
+  if (error?.message === "image-read-failed" || error?.name === "InvalidStateError") return "图片读取失败，请选择有效的二维码图片后重试。";
+  if (error?.message === "no-qr-code") return "图片中没有识别到二维码。";
+  if (error?.message === "unsupported-qr-format") return "二维码格式不支持，请扫描 SimplePay 商家付款码。";
+  return "图片二维码识别失败，请更换清晰的二维码图片后重试。";
+}
+
+async function scanQrFromImageFile(file) {
+  const result = document.querySelector("#scan-result");
+  if (!file) return;
+  let bitmap = null;
+  try {
+    if (result) result.textContent = "正在本地识别图片二维码...";
+    bitmap = await createScaledQrBitmap(file);
+    const rawValue = await decodeQrFromImageBitmap(bitmap);
+    if (!rawValue) throw new Error("no-qr-code");
+    const payment = parsePaymentCode(rawValue);
+    if (!payment) throw new Error("unsupported-qr-format");
+    fillPaymentForm(payment);
+    if (result) result.textContent = "已从图片识别商家付款码。";
+    showToast(payment.kind === "disabled-receive" ? "个人转账已停用" : "已从图片识别二维码");
+  } catch (error) {
+    if (result) result.textContent = qrImageErrorMessage(error);
+  } finally {
+    bitmap?.close?.();
   }
 }
 
@@ -4656,49 +4698,6 @@ function handleUserButton(button) {
     return;
   }
 
-  if (button.id === "submit-kyc-button") {
-    const memberCustomer = currentMemberProfile?.customer || {};
-    const suggestedName = memberCustomer.name || currentUser?.displayName || "";
-    const suggestedPhone = memberCustomer.phone || "";
-    const suggestedIdLast4 = memberCustomer.idLast4 ? `****${memberCustomer.idLast4}` : "";
-    const currentDataNote =
-      walletKycStatus === "approved"
-        ? "当前账号已完成实名，如需变更资料可重新提交后台审核。"
-        : walletKycStatus === "pending"
-          ? "当前实名申请正在等待后台审核，重新提交会覆盖旧资料。"
-          : currentMemberProfile
-            ? "已从个人资料档案带入姓名和手机，请检查后提交。"
-            : "请填写真实资料提交后台审核。";
-    openDialog(
-      "实名认证",
-      `<label class="field-label">真实姓名</label>
-       <input class="dialog-input" id="kyc-full-name" value="${escapeHtml(suggestedName)}" placeholder="例如：Lee Wei" />
-       <label class="field-label">证件号码</label>
-       <input class="dialog-input" id="kyc-id-number" value="${escapeHtml(suggestedIdLast4)}" placeholder="身份证/护照号码" />
-       <label class="field-label">手机号</label>
-       <input class="dialog-input" id="kyc-phone" value="${escapeHtml(suggestedPhone)}" placeholder="+60..." />
-       <p class="dialog-note">${currentDataNote}</p>`,
-      "提交审核",
-      async () => {
-        const fullName = document.querySelector("#kyc-full-name").value.trim();
-        const idNumber = document.querySelector("#kyc-id-number").value.trim();
-        const phone = document.querySelector("#kyc-phone").value.trim();
-        if (!fullName || !idNumber || !phone) {
-          showToast("请完整填写实名资料");
-          return;
-        }
-        try {
-          const requestId = await submitKycRequest(fullName, idNumber, phone);
-          closeDialog();
-          promptAdminWhatsappCall({ type: "KYC verification", id: requestId, note: fullName });
-        } catch (error) {
-          showToast(error.message || "实名提交失败");
-        }
-      }
-    );
-    return;
-  }
-
   if (button.id === "copy-receive-code") {
     if (!USER_RECEIVE_CODE_ENABLED) {
       showToast("用户收款码已停用，积分只能用于消费");
@@ -4802,8 +4801,8 @@ function handleUserButton(button) {
       </div>
       <div class="scanner-actions">
         <button class="text-action" id="start-scanner" type="button">打开摄像头扫码</button>
-        <button class="text-action" id="scan-image-button" type="button">从相册扫码</button>
-        <input class="hidden" id="qr-image-input" type="file" accept="image/*" />
+        <label class="text-action image-file-label" for="qr-image-input">从相册选择二维码</label>
+        <input class="image-file-input" id="qr-image-input" type="file" accept="image/*" />
       </div>
       <p class="dialog-note" id="scan-result">请扫描商家付款码，或从手机相册选择二维码图片。个人扫码转账已停用。</p>
        <label class="field-label">付款码内容</label>
@@ -4817,8 +4816,14 @@ function handleUserButton(button) {
       confirmScanPayment
     );
     document.querySelector("#start-scanner")?.addEventListener("click", startScanner);
-    document.querySelector("#scan-image-button")?.addEventListener("click", () => document.querySelector("#qr-image-input")?.click());
-    document.querySelector("#qr-image-input")?.addEventListener("change", (event) => scanQrFromImageFile(event.target.files?.[0]));
+    document.querySelector("#qr-image-input")?.addEventListener("change", async (event) => {
+      const input = event.currentTarget;
+      try {
+        await scanQrFromImageFile(input.files?.[0]);
+      } finally {
+        input.value = "";
+      }
+    });
     return;
   }
 
@@ -6009,5 +6014,6 @@ onAuthStateChanged(auth, async (user) => {
   }
   await enterRole(activeRole);
 });
+
 
 
