@@ -2426,6 +2426,27 @@ async function callDeleteAffiliateTestUserFunction(userId, confirmation) {
   return result.data;
 }
 
+async function deleteAffiliateTestUserFromAdmin(userId) {
+  const user = findUser(userId);
+  if (!user) return toast("找不到要删除的用户");
+  if (isAdminAffiliateUser(user)) return toast("管理员账号不能删除");
+  const confirmation = window.prompt(
+    `将删除联盟业务资料，不会删除 Firebase Authentication 账号。\n\n姓名：${user.name || "-"}\n账号：${user.account || "-"}\n手机：${user.phone || "-"}\n用户ID：${user.id}\n\n请输入 DELETE AFFILIATE TEST USER 确认`,
+  );
+  if (confirmation !== "DELETE AFFILIATE TEST USER") {
+    toast("确认文本不正确，已取消删除");
+    return;
+  }
+  try {
+    await callDeleteAffiliateTestUserFunction(user.id, confirmation);
+    state = await loadState();
+    renderAll();
+    toast("测试用户及关联联盟资料已删除");
+  } catch (error) {
+    toast(`删除测试用户失败：${error.message || error.code || "未知错误"}`);
+  }
+}
+
 function withTimeout(promise, ms, message) {
   return Promise.race([
     promise,
@@ -3018,11 +3039,13 @@ function renderMemberWithdraws(user) {
 }
 
 function renderAdmin() {
+  const todoItems = adminTodoItems();
+  const todoCount = (focus) => Number(todoItems.find((item) => item.focus === focus)?.count || 0);
   document.querySelector("#metricUsers").textContent = state.users.length;
   document.querySelector("#metricSales").textContent = money(state.orders.filter((order) => order.status === "paid").reduce((sum, order) => sum + order.amount, 0));
-  document.querySelector("#metricPendingOrders").textContent = state.orders.filter((order) => order.status === "pending").length;
-  document.querySelector("#metricPendingRewards").textContent = money(state.rewards.filter((reward) => ["pending", "releasing"].includes(reward.status)).reduce((sum, reward) => sum + (Number(reward.amount || 0) - Number(reward.releasedAmount || 0)), 0));
-  document.querySelector("#metricWithdraws").textContent = money(state.withdraws.filter((item) => item.status === "pending").reduce((sum, item) => sum + item.amount, 0));
+  document.querySelector("#metricPendingOrders").textContent = todoCount("pendingOrders");
+  document.querySelector("#metricPendingRewards").textContent = todoCount("pendingRewards");
+  document.querySelector("#metricWithdraws").textContent = todoCount("pendingWithdraws");
   const summary = readinessSummary();
   const readinessMetric = document.querySelector("#metricReadiness");
   readinessMetric.textContent = summary.label;
@@ -3030,8 +3053,8 @@ function renderAdmin() {
   ensurePlanCooldownField();
   ensurePlanCancelButton();
   ensureRewardStatusOptions();
-  renderAdminTodos();
-  renderAdminTabBadges();
+  renderAdminTodos(todoItems);
+  renderAdminTabBadges(todoItems);
   renderAdminPlans();
   renderAdminUsers();
   renderRepeatCreditLogs();
@@ -3063,6 +3086,7 @@ function adminTodoItems() {
   const reversalCases = (state.reversalCases || []).filter((item) =>
     item.status === "review-required"
   );
+  const readinessIssues = readinessChecks().filter((item) => !item.ok);
 
   return [
     {
@@ -3168,13 +3192,21 @@ function adminTodoItems() {
       tab: "adminRisk",
       focus: "integrityIssues",
     },
+    {
+      title: "上线自检待处理",
+      count: readinessIssues.length,
+      level: readinessIssues.length ? "warn" : "ok",
+      detail: readinessIssues.length ? readinessIssues.map((item) => item.label).slice(0, 3).join("、") : "上线自检正常。",
+      action: "查看上线自检",
+      tab: "adminRisk",
+      focus: "readiness",
+    },
   ];
 }
 
-function renderAdminTodos() {
+function renderAdminTodos(items = adminTodoItems()) {
   const target = document.querySelector("#adminTodoList");
   if (!target) return;
-  const items = adminTodoItems();
   const activeItems = items.filter((item) => Number(item.count || 0) > 0);
   if (!activeItems.length) {
     target.innerHTML = `
@@ -3208,8 +3240,7 @@ function setTabBadge(tabId, count, tone = "warn") {
   button.appendChild(badge);
 }
 
-function renderAdminTabBadges() {
-  const items = adminTodoItems();
+function renderAdminTabBadges(items = adminTodoItems()) {
   const byTab = items.reduce((map, item) => {
     map[item.tab] = (map[item.tab] || 0) + Number(item.count || 0);
     return map;
@@ -3366,18 +3397,22 @@ function renderAdminUsers() {
   document.querySelector("#pointsForm [name='userId']").innerHTML = sanitizeHtml(userOptions);
   document.querySelector("#repeatCreditsForm [name='userId']").innerHTML = sanitizeHtml(userOptions);
   const users = filteredUsers();
+  const table = document.querySelector("#adminUserTable")?.closest("table");
+  const tableWrap = table?.closest(".table-wrap");
+  if (table) {
+    table.querySelector("thead").innerHTML = "<tr><th>姓名</th><th>账号</th><th>手机</th><th>积分</th><th>配套状态</th><th>状态</th><th>操作</th></tr>";
+    table.style.minWidth = "820px";
+  }
+  if (tableWrap) tableWrap.style.overflowX = "auto";
   document.querySelector("#adminUserTable").innerHTML = sanitizeHtml(users.map((user) => {
     const referrer = findUser(user.referrerId);
     const [statusClass, statusLabel] = packageStatus(user);
     const sharedUsers = sharedWithdrawAccountUsers(user.withdrawAccount, user.id);
-    const payoutRisk = sharedUsers.length ? `<span class="risk-line">共享账号 ${sharedUsers.length}</span>` : "-";
-    const missingFields = profileMissingFields(user);
-    const profileRisk = missingFields.length ? `<span class="profile-line">缺：${missingFields.join("、")}</span>` : "";
     const deleteTestUserButton = isAdminAffiliateUser(user)
       ? ""
       : `<button class="link" data-delete-test-user="${user.id}">删除测试用户</button>`;
-    return `<tr><td>${user.name}${profileRisk}</td><td>${user.account}</td><td>${user.phone || "-"}</td><td>${user.inviteCode}</td><td>${referrer?.name || "无"}</td><td>${points(user.points)}</td><td><span class="tag ${statusClass}">${statusLabel}</span></td><td>${directReferralCount(user.id)} / 开放</td><td>${points(user.repeatCredits || 0)}</td><td>${payoutRisk}</td><td><span class="tag ${user.frozen ? "frozen" : "active"}">${user.frozen ? "已冻结" : "正常"}</span></td><td><button class="link" data-user-detail="${user.id}">详情</button><button class="link" data-admin-change-referrer="${user.id}">调整推荐人</button><button class="link" data-export-user-records="${user.id}">导出</button><button class="link" data-freeze-user="${user.id}">${user.frozen ? "解冻" : "冻结"}</button>${deleteTestUserButton}</td></tr>`;
-  }).join("") || `<tr><td colspan="12">没有符合条件的用户</td></tr>`);
+    return `<tr><td>${user.name}</td><td>${user.account}</td><td>${user.phone || "-"}</td><td>${points(user.points)}</td><td><span class="tag ${statusClass}">${statusLabel}</span></td><td><span class="tag ${user.frozen ? "frozen" : "active"}">${user.frozen ? "已冻结" : "正常"}</span></td><td><button class="link" data-user-detail="${user.id}">详情</button><details><summary>更多操作</summary><button class="link" data-admin-change-referrer="${user.id}">调整推荐人</button><button class="link" data-export-user-records="${user.id}">导出</button><button class="link" data-freeze-user="${user.id}">${user.frozen ? "解冻" : "冻结"}</button>${deleteTestUserButton}</details></td></tr>`;
+  }).join("") || `<tr><td colspan="7">没有符合条件的用户</td></tr>`);
 }
 
 function repeatCreditReasonText(reason) {
@@ -5383,6 +5418,13 @@ document.body.addEventListener("click", async (event) => {
     return;
   }
 
+  const deleteTestUser = event.target.closest("[data-delete-test-user]");
+  if (deleteTestUser) {
+    if (!requireAdmin()) return;
+    await deleteAffiliateTestUserFromAdmin(deleteTestUser.dataset.deleteTestUser);
+    return;
+  }
+
   const adminChangeReferrer = event.target.closest("[data-admin-change-referrer]");
   if (adminChangeReferrer) {
     if (!requireAdmin()) return;
@@ -5869,7 +5911,7 @@ document.querySelector("#resetBtn").addEventListener("click", async () => {
     return;
   }
 
-  const deleteTestUser = event.target.closest("[data-delete-test-user]");
+  const deleteTestUser = null;
   if (deleteTestUser) {
     if (!requireAdmin()) return;
     const user = findUser(deleteTestUser.dataset.deleteTestUser);
