@@ -261,6 +261,21 @@ async function saveSettings(settings) {
   }, { merge: true });
 }
 
+async function previewPosTestData() {
+  const result = await httpsCallable(cloudFunctions, "previewPosTestData")({});
+  return result.data;
+}
+
+async function exportPosCloudBackup() {
+  const result = await httpsCallable(cloudFunctions, "exportPosCloudBackup")({});
+  return result.data;
+}
+
+async function clearPosCloudTestData(data) {
+  const result = await httpsCallable(cloudFunctions, "clearPosCloudTestData")(data);
+  return result.data;
+}
+
 async function loadSettings() {
   const snapshot = await getDoc(doc(db, "settings", "app"));
   return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
@@ -847,6 +862,9 @@ window.cloudPOS = {
   saveAuditLog,
   saveShift,
   saveSettings,
+  previewPosTestData,
+  exportPosCloudBackup,
+  clearPosCloudTestData,
   loadSettings,
   loadSale,
   saveSale,

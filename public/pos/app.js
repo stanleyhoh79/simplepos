@@ -7320,6 +7320,133 @@ function resetAllData() {
   renderAll();
 }
 
+const POS_CLOUD_TEST_COLLECTIONS = ["sales", "stockAdjustments", "shifts", "integrationJobs", "auditLogs"];
+
+function downloadPosCloudBackup(backup) {
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  link.href = url;
+  link.download = `pos-cloud-backup-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.json`;
+  document.body.append(link);
+  try {
+    link.click();
+    return true;
+  } finally {
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+}
+
+function posCloudCleanupErrorMessage(error) {
+  if (error?.code === "functions/permission-denied" || error?.code === "permission-denied") {
+    return "只有已使用 Google 登录的 POS 管理员可以清理云端测试数据。";
+  }
+  if (error?.code === "functions/unauthenticated" || error?.code === "unauthenticated") {
+    return "请先使用 Google 管理员账号登录后再清理云端测试数据。";
+  }
+  if (error?.code === "functions/unavailable" || error?.code === "unavailable") {
+    return "云端服务暂时不可用，请检查网络后重试。";
+  }
+  return "服务器未能完成云端备份或清理，数据未显示为清理成功，请稍后重试。";
+}
+
+function choosePosCloudTestCollections(preview = {}) {
+  return new Promise((resolve) => {
+    const dialog = document.createElement("dialog");
+    const counts = preview.collections || {};
+    dialog.innerHTML = `
+      <form method="dialog" class="settings-form">
+        <h3>清理云端测试数据</h3>
+        <p class="helper-text">仅会清理勾选的云端业务集合。不会删除分行、商品、员工权限或 POS 设置。清理前将先下载服务器生成的 JSON 备份。</p>
+        ${POS_CLOUD_TEST_COLLECTIONS.map((name) => `<label><input type="checkbox" name="pos-cloud-test-collection" value="${name}"> ${name}（${Number(counts[name] || 0)} 条）</label>`).join("")}
+        <label>确认文字
+          <input name="confirmationText" autocomplete="off" placeholder="CLEAR POS CLOUD TEST DATA" required>
+        </label>
+        <p class="form-message" data-pos-cloud-test-error></p>
+        <div class="admin-actions">
+          <button class="ghost" type="button" data-pos-cloud-test-cancel>取消</button>
+          <button class="ghost danger" type="submit">导出备份并清理</button>
+        </div>
+      </form>`;
+    document.body.append(dialog);
+    const form = dialog.querySelector("form");
+    const errorText = dialog.querySelector("[data-pos-cloud-test-error]");
+    let result = null;
+    dialog.querySelector("[data-pos-cloud-test-cancel]").addEventListener("click", () => dialog.close());
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const selectedCollections = [...form.querySelectorAll('input[name="pos-cloud-test-collection"]:checked')]
+        .map((input) => input.value);
+      const confirmationText = form.elements.confirmationText.value;
+      if (!selectedCollections.length) {
+        errorText.textContent = "请至少勾选一个要清理的集合。";
+        return;
+      }
+      if (confirmationText !== "CLEAR POS CLOUD TEST DATA") {
+        errorText.textContent = "确认文字必须完全等于 CLEAR POS CLOUD TEST DATA。";
+        return;
+      }
+      result = { selectedCollections, confirmationText };
+      dialog.close();
+    });
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+      resolve(result);
+    }, { once: true });
+    dialog.showModal();
+  });
+}
+
+async function clearPosCloudTestData() {
+  if (!requireAdmin()) return;
+  if (!hasCloud() || !window.cloudPOS?.previewPosTestData || !window.cloudPOS?.exportPosCloudBackup || !window.cloudPOS?.clearPosCloudTestData) {
+    alert("云端清理功能尚未加载，请刷新页面后使用 Google 管理员登录。" );
+    return;
+  }
+  if (!navigator.onLine) {
+    alert("清理云端测试数据需要联网，请恢复网络后重试。" );
+    return;
+  }
+  try {
+    const preview = await window.cloudPOS.previewPosTestData();
+    const selection = await choosePosCloudTestCollections(preview);
+    if (!selection) return;
+    try {
+      const backupResult = await window.cloudPOS.exportPosCloudBackup();
+      if (!backupResult?.backup || typeof backupResult.backup !== "object") {
+        throw new Error("服务器未返回有效的云端备份数据。");
+      }
+      if (!downloadPosCloudBackup(backupResult.backup)) {
+        throw new Error("浏览器未能触发备份下载。");
+      }
+    } catch (error) {
+      console.error("POS cloud backup failed", error);
+      alert("云端备份失败，已取消清理");
+      return;
+    }
+    const result = await window.cloudPOS.clearPosCloudTestData(selection);
+    const deleted = result?.deleted || {};
+    alert(`云端测试数据已清理。\n\n${selection.selectedCollections.map((name) => `${name}：删除 ${Number(deleted[name] || 0)} 条`).join("\n")}\n\n已保留 branches、products、users 与 settings/app。`);
+  } catch (error) {
+    console.error("POS cloud test-data cleanup failed", error);
+    alert(`清理云端测试数据失败：${posCloudCleanupErrorMessage(error)}`);
+  }
+}
+
+function setupPosCloudTestCleanupButton() {
+  if (!els.resetDataBtn || document.querySelector("#clearPosCloudTestDataBtn")) return;
+  const button = document.createElement("button");
+  button.id = "clearPosCloudTestDataBtn";
+  button.type = "button";
+  button.className = "ghost danger";
+  button.textContent = "清理云端测试数据";
+  els.resetDataBtn.insertAdjacentElement("beforebegin", button);
+  button.addEventListener("click", clearPosCloudTestData);
+}
+
 els.searchInput.addEventListener("input", renderProducts);
 els.categoryFilter.addEventListener("change", () => {
   renderProducts();
@@ -7575,6 +7702,7 @@ els.restoreInput.addEventListener("change", () => {
   if (file) restoreBackupFile(file);
   els.restoreInput.value = "";
 });
+setupPosCloudTestCleanupButton();
 els.resetDataBtn.addEventListener("click", resetAllData);
 els.seedBtn.addEventListener("click", () => {
   if (!requireAdmin()) return;

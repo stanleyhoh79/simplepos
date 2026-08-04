@@ -5,6 +5,7 @@ const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 if (!admin.apps.length) admin.initializeApp();
 
 const POS_ADMIN_EMAIL = "stanleyhoh79@gmail.com";
+const POS_CLOUD_TEST_COLLECTIONS = ["sales", "stockAdjustments", "shifts", "integrationJobs", "auditLogs"];
 const RETRYABLE_JOB_STATUSES = new Set(["retry", "needs-attention"]);
 const JOB_TARGETS = {
   "simplepay.payment": "simplepay",
@@ -79,6 +80,94 @@ function assertAdmin(request) {
     throw new HttpsError("permission-denied", "Only the Simple POS administrator can retry integration jobs.");
   }
 }
+
+function selectedPosTestCollections(value) {
+  if (!Array.isArray(value) || !value.length) {
+    throw new HttpsError("invalid-argument", "At least one POS cloud collection must be selected.");
+  }
+  const selected = [...new Set(value.map(text).filter(Boolean))];
+  if (selected.some((name) => !POS_CLOUD_TEST_COLLECTIONS.includes(name))) {
+    throw new HttpsError("invalid-argument", "Only fixed POS test-data collections may be cleaned.");
+  }
+  return POS_CLOUD_TEST_COLLECTIONS.filter((name) => selected.includes(name));
+}
+
+function jsonBackupValue(value) {
+  if (value === null || value === undefined || typeof value !== "object") return value;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value.toDate === "function") return value.toDate().toISOString();
+  if (Array.isArray(value)) return value.map(jsonBackupValue);
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, jsonBackupValue(item)]));
+}
+
+async function readPosCollectionForBackup(name) {
+  const snapshot = await posDb.collection(name).get();
+  return snapshot.docs.map((item) => ({ id: item.id, ...jsonBackupValue(item.data()) }));
+}
+
+exports.previewPosTestData = onCall(async (request) => {
+  assertAdmin(request);
+  const counts = await Promise.all(POS_CLOUD_TEST_COLLECTIONS.map(async (name) => {
+    const snapshot = await posDb.collection(name).get();
+    return [name, snapshot.size];
+  }));
+  return { collections: Object.fromEntries(counts) };
+});
+
+exports.exportPosCloudBackup = onCall(async (request) => {
+  assertAdmin(request);
+  const [sales, stockAdjustments, shifts, integrationJobs, auditLogs, branches, products, users, settingsSnapshot] = await Promise.all([
+    ...POS_CLOUD_TEST_COLLECTIONS.map(readPosCollectionForBackup),
+    readPosCollectionForBackup("branches"),
+    readPosCollectionForBackup("products"),
+    readPosCollectionForBackup("users"),
+    posDb.collection("settings").doc("app").get()
+  ]);
+  return {
+    backup: {
+      schemaVersion: 1,
+      exportedAt: new Date().toISOString(),
+      sales,
+      stockAdjustments,
+      shifts,
+      integrationJobs,
+      auditLogs,
+      branches,
+      products,
+      users,
+      settings: settingsSnapshot.exists ? { id: settingsSnapshot.id, ...jsonBackupValue(settingsSnapshot.data()) } : null
+    }
+  };
+});
+
+exports.clearPosCloudTestData = onCall(async (request) => {
+  assertAdmin(request);
+  const confirmationText = text(request.data && request.data.confirmationText);
+  if (confirmationText !== "CLEAR POS CLOUD TEST DATA") {
+    throw new HttpsError("invalid-argument", "The POS cloud cleanup confirmation text is incorrect.");
+  }
+  const selectedCollections = selectedPosTestCollections(request.data && request.data.selectedCollections);
+  const deleted = Object.fromEntries(POS_CLOUD_TEST_COLLECTIONS.map((name) => [name, 0]));
+  for (const name of selectedCollections) {
+    const snapshot = await posDb.collection(name).get();
+    for (let index = 0; index < snapshot.docs.length; index += 400) {
+      const batch = posDb.batch();
+      const docs = snapshot.docs.slice(index, index + 400);
+      for (const item of docs) batch.delete(item.ref);
+      await batch.commit();
+      deleted[name] += docs.length;
+    }
+  }
+  const adminEmail = text(request.auth.token && request.auth.token.email).toLowerCase();
+  await posDb.collection("auditLogs").add({
+    action: "pos.cloud-test-data.clear",
+    actor: { email: adminEmail, role: "admin" },
+    selectedCollections,
+    deleted,
+    createdAt: serverTimestamp()
+  });
+  return { ok: true, deleted };
+});
 
 function buildCheckoutIntegrationJobs(sale) {
   const references = sale.externalReferences || {};
