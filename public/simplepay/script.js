@@ -4121,7 +4121,6 @@ function openDialog(title, body, confirmText = "确认", onConfirm = closeDialog
       confirm.textContent = originalText;
     }
   };
-  lockPageForDialog();
   overlay.classList.remove("hidden");
 }
 
@@ -4129,23 +4128,9 @@ function closeDialog() {
   stopScanner();
   const overlay = document.querySelector("#action-overlay");
   if (overlay) overlay.classList.add("hidden");
-  restorePageAfterDialog();
 }
 
 let scannerLayoutFrame = 0;
-let dialogPageOverflow = null;
-
-function lockPageForDialog() {
-  if (dialogPageOverflow !== null) return;
-  dialogPageOverflow = document.body.style.overflow;
-  document.body.style.overflow = "hidden";
-}
-
-function restorePageAfterDialog() {
-  if (dialogPageOverflow === null) return;
-  document.body.style.overflow = dialogPageOverflow;
-  dialogPageOverflow = null;
-}
 
 function updateScannerDialogLayout() {
   const dialog = document.querySelector("#action-overlay .dialog.scanner-dialog");
@@ -4155,9 +4140,9 @@ function updateScannerDialogLayout() {
   const tabletLandscape = landscape && window.innerWidth >= 768;
   const narrowLandscape = landscape && window.innerWidth <= 900 && window.innerHeight <= 540;
   const phonePortrait = window.innerWidth <= 767 && window.matchMedia("(orientation: portrait)").matches;
-  const aspect = phonePortrait ? "1 / 1" : tabletLandscape ? "16 / 7" : narrowLandscape ? "4 / 3" : "16 / 9";
+  const aspect = phonePortrait ? "1 / 1" : tabletLandscape ? "16 / 6" : narrowLandscape ? "4 / 3" : "16 / 9";
   scannerBox.style.aspectRatio = aspect;
-  scannerBox.style.maxHeight = tabletLandscape ? "220px" : "";
+  scannerBox.style.maxHeight = tabletLandscape ? "170px" : phonePortrait ? "260px" : "";
 }
 
 function scheduleScannerDialogLayout() {
@@ -6058,3 +6043,4 @@ onAuthStateChanged(auth, async (user) => {
   }
   await enterRole(activeRole);
 });
+

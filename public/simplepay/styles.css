@@ -288,39 +288,48 @@ th { color: var(--muted); font-size: 12px; font-weight: 700; }
   box-shadow: 0 28px 80px rgba(16, 37, 30, .24); overflow: hidden;
 }
 .dialog.scanner-dialog {
-  width: min(92vw, 680px);
-  max-height: min(88dvh, 720px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  width: min(94vw, 720px);
+  height: auto;
+  max-height: 92dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: fixed;
+  inset: 4dvh auto auto 50%;
+  transform: translateX(-50%);
 }
 .dialog-header, .dialog-actions {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 18px 20px; border-bottom: 1px solid var(--line);
 }
 .dialog-actions { border-top: 1px solid var(--line); border-bottom: 0; justify-content: flex-end; }
-.scanner-dialog .dialog-header { flex: 0 0 auto; }
-.scanner-dialog .dialog-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-}
-.scanner-dialog .dialog-actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  flex: 0 0 auto;
-  background: var(--surface);
-}
-.scanner-dialog .dialog-actions button { min-height: 48px; }
 .dialog-close {
   width: 34px; height: 34px; border-radius: 8px; background: var(--surface-soft);
   color: var(--text); font-size: 22px; line-height: 1;
 }
 .dialog-body { display: grid; gap: 12px; padding: 20px; }
+.scanner-dialog .dialog-body {
+  min-width: 0;
+  padding-bottom: 104px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.scanner-dialog .dialog-actions {
+  position: fixed;
+  left: 50%;
+  bottom: 4dvh;
+  z-index: 22;
+  width: min(94vw, 720px);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fff;
+  box-shadow: 0 -8px 20px rgba(16, 37, 30, .12);
+}
+.scanner-dialog .dialog-actions button { min-height: 48px; flex: 1 1 0; }
 .dialog-input {
   width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 8px;
   padding: 9px 12px; color: var(--text); font: inherit;
@@ -361,8 +370,7 @@ th { color: var(--muted); font-size: 12px; font-weight: 700; }
 .scanner-frame .scan-line { left: 0; right: 0; max-width: 100%; }
 .scanner-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .scanner-dialog #scan-result,
-.scanner-dialog .dialog-input,
-.scanner-dialog .dialog-body { min-width: 0; word-break: break-word; overflow-wrap: anywhere; }
+.scanner-dialog .dialog-input { min-width: 0; word-break: break-word; overflow-wrap: anywhere; }
 @media (orientation: portrait) and (max-width: 767px) {
   .scanner-box { aspect-ratio: 1 / 1; }
 }
@@ -370,12 +378,15 @@ th { color: var(--muted); font-size: 12px; font-weight: 700; }
   .scanner-box { aspect-ratio: 4 / 3; }
 }
 @media (orientation: landscape) and (min-width: 768px) {
-  .scanner-dialog .scanner-box { max-height: 220px; aspect-ratio: 16 / 7; }
+  .scanner-dialog .scanner-box { max-height: 170px; aspect-ratio: 16 / 6; }
+}
+@media (orientation: portrait) and (max-width: 767px) {
+  .scanner-dialog .scanner-box { max-height: 260px; }
 }
 @media (max-width: 540px) {
   .action-overlay { padding: 12px; }
-  .dialog.scanner-dialog { width: min(92vw, 720px); }
   .scanner-actions { grid-template-columns: 1fr; }
+  .scanner-dialog .dialog-actions { width: min(94vw, 720px); flex-direction: column; }
 }
 .toast {
   position: fixed; right: 24px; bottom: 24px; z-index: 30;
