@@ -83,6 +83,103 @@ async function requireAdmin(request) {
   return user;
 }
 
+const TEST_DATA_COLLECTIONS = [
+  "wallets",
+  "transactions",
+  "rechargeRequests",
+  "withdrawRequests",
+  "merchantOrders",
+  "paymentIntents",
+  "refundRequests",
+  "merchantRefundIntents",
+  "settlementRequests",
+  "integrationJobs",
+  "sales",
+];
+
+const DELETE_BATCH_SIZE = 400;
+
+function isExplicitTestMerchant(data) {
+  return data.isTest === true || data.isDemo === true || text(data.status).toLowerCase() === "demo";
+}
+
+async function deleteDocumentsInBatches(documents) {
+  let deleted = 0;
+  for (let index = 0; index < documents.length; index += DELETE_BATCH_SIZE) {
+    const batch = db.batch();
+    documents.slice(index, index + DELETE_BATCH_SIZE).forEach((item) => batch.delete(item.ref));
+    await batch.commit();
+    deleted += Math.min(DELETE_BATCH_SIZE, documents.length - index);
+  }
+  return deleted;
+}
+
+async function getSimplePayCleanupPreview() {
+  const snapshots = await Promise.all(TEST_DATA_COLLECTIONS.map((collectionName) => db.collection(collectionName).get()));
+  const collections = Object.fromEntries(
+    TEST_DATA_COLLECTIONS.map((collectionName, index) => [collectionName, snapshots[index].size])
+  );
+  const merchantSnapshot = await db.collection("merchants").get();
+  return {
+    collections,
+    merchants: {
+      total: merchantSnapshot.size,
+      testEligible: merchantSnapshot.docs.filter((item) => isExplicitTestMerchant(item.data())).length,
+    },
+  };
+}
+
+exports.previewSimplePayTestData = onCall(async (request) => {
+  await requireAdmin(request);
+  return getSimplePayCleanupPreview();
+});
+
+exports.clearSimplePayTestData = onCall(async (request) => {
+  const reviewer = await requireAdmin(request);
+  const confirmation = text(request.data && request.data.confirmation);
+  if (confirmation !== "CLEAR SIMPLEPAY TEST DATA") {
+    throw new HttpsError("invalid-argument", "Confirmation text must exactly equal CLEAR SIMPLEPAY TEST DATA.");
+  }
+  if (request.data?.backupConfirmed !== true) {
+    throw new HttpsError("failed-precondition", "Export a backup before clearing test data.");
+  }
+  const selectedCollections = request.data && request.data.selectedCollections;
+  if (!Array.isArray(selectedCollections) || selectedCollections.some((name) => typeof name !== "string" || !TEST_DATA_COLLECTIONS.includes(name))) {
+    throw new HttpsError("invalid-argument", "selectedCollections must contain only approved SimplePay business collections.");
+  }
+  const selected = new Set(selectedCollections);
+
+  const deleted = {};
+  const skipped = {};
+  for (const collectionName of TEST_DATA_COLLECTIONS) {
+    const snapshot = await db.collection(collectionName).get();
+    deleted[collectionName] = selected.has(collectionName)
+      ? await deleteDocumentsInBatches(snapshot.docs)
+      : 0;
+    skipped[collectionName] = selected.has(collectionName) ? 0 : snapshot.size;
+  }
+
+  const merchantSnapshot = await db.collection("merchants").get();
+  const testMerchants = merchantSnapshot.docs.filter((item) => isExplicitTestMerchant(item.data()));
+  deleted.merchants = await deleteDocumentsInBatches(testMerchants);
+  skipped.merchants = merchantSnapshot.size - deleted.merchants;
+
+  const backupStatus = "client JSON backup exported and confirmed";
+  await db.collection("payAuditLogs").add({
+    actor: reviewer.email,
+    actorRole: "admin",
+    module: "System config",
+    action: "Clear SimplePay test data",
+    target: "test business data",
+    detail: JSON.stringify({ selectedCollections: [...selected], deleted, skipped, backupStatus }),
+    result: "success",
+    createdAt: new Date().toISOString(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { deleted, skipped, backupStatus };
+});
+
 function ledgerRecord({
   id,
   account,

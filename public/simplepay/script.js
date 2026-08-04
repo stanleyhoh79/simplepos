@@ -315,10 +315,16 @@ async function exportSystemBackupJson() {
   const collectionNames = [
     "wallets",
     "merchants",
+    "transactions",
     "rechargeRequests",
     "withdrawRequests",
+    "merchantOrders",
+    "paymentIntents",
     "refundRequests",
+    "merchantRefundIntents",
     "settlementRequests",
+    "integrationJobs",
+    "sales",
     "kycRequests",
     "marketingItems",
     "supportTickets",
@@ -5134,6 +5140,53 @@ function openAdminShortcut(target) {
     .catch((error) => showToast(error.message || "Shortcut load failed"));
 }
 
+async function openClearTestDataPreview() {
+  try {
+    const preview = await callMoneyFunction("previewSimplePayTestData", {});
+    const collections = Object.entries(preview.collections || {});
+    openDialog(
+      "预览清理范围",
+      `<p class="dialog-note">请勾选要整集合清空的业务集合。管理员与系统配置不会出现在此列表中，也不会被删除。</p>
+       <p class="dialog-note">商家仅会删除明确标记为测试的数据：${Number(preview.merchants?.testEligible) || 0} / ${Number(preview.merchants?.total) || 0}。</p>
+       <div class="field-label">${collections.map(([name, count]) => `<label><input type="checkbox" name="clear-test-collection" value="${name}" /> ${name} (${Number(count) || 0})</label>`).join("<br />")}</div>
+       <p class="dialog-note">清理前将先导出 JSON 备份。请输入以下文本以继续：</p>
+       <label class="field-label">确认文本<input class="dialog-input" id="clear-test-data-confirmation" autocomplete="off" /></label>
+       <code>CLEAR SIMPLEPAY TEST DATA</code>`,
+      "导出备份并清理",
+      async () => {
+        const confirmation = document.querySelector("#clear-test-data-confirmation")?.value || "";
+        const selectedCollections = [...document.querySelectorAll('input[name="clear-test-collection"]:checked')]
+          .map((input) => input.value);
+        if (confirmation !== "CLEAR SIMPLEPAY TEST DATA") {
+          showToast("确认文本必须完全等于 CLEAR SIMPLEPAY TEST DATA");
+          return;
+        }
+        try {
+          await exportSystemBackupJson();
+          const result = await callMoneyFunction("clearSimplePayTestData", {
+            confirmation,
+            selectedCollections,
+            backupConfirmed: true,
+          });
+          const deleted = Object.entries(result.deleted || {})
+            .map(([collectionName, count]) => `<li>${collectionName}: ${Number(count) || 0}</li>`)
+            .join("");
+          openDialog(
+            "测试数据清理完成",
+            `<p class="dialog-note">备份状态：${result.backupStatus || "已确认"}</p><p><strong>实际删除数量</strong></p><ul>${deleted || "<li>无</li>"}</ul>`,
+            "关闭",
+            closeDialog
+          );
+        } catch (error) {
+          showToast(`清理测试数据失败：${error.message || error.code || "未知错误"}`);
+        }
+      }
+    );
+  } catch (error) {
+    showToast(`预览清理范围失败：${error.message || error.code || "未知错误"}`);
+  }
+}
+
 function handleAdminButton(button) {
   const text = button.textContent.trim();
   if (button.id === "export-finance-button") {
@@ -5197,6 +5250,12 @@ function handleAdminButton(button) {
         })
       )
       .catch((error) => showToast(error.message || "Backup failed"));
+    return;
+  }
+
+  if (button.id === "preview-clear-test-data-button" || button.id === "clear-test-data-button") {
+    if (!requireAdminPermission("config")) return;
+    openClearTestDataPreview();
     return;
   }
 
@@ -5922,6 +5981,46 @@ onAuthStateChanged(auth, async (user) => {
   updateRoleActionLabels(getVisibleLoginIdentity(user));
   if (!user) {
     showRoleChoiceGateway(getVisibleLoginIdentity(null));
+    return;
+  }
+
+  if (false) {
+    if (!requireAdminPermission("config")) return;
+    openDialog(
+      "清理测试数据",
+      `<p class="dialog-note">会删除测试钱包、积分流水、充值、提现、商家订单、付款意图、退款、结算、整合任务与销售记录。</p>
+       <p class="dialog-note">不会删除管理员与系统配置；商家只删除明确标记为测试的数据。</p>
+       <p class="dialog-note">将先导出 JSON 备份。请输入以下文本以继续：</p>
+       <label class="field-label">确认文本<input class="dialog-input" id="clear-test-data-confirmation" autocomplete="off" /></label>
+       <code>CLEAR SIMPLEPAY TEST DATA</code>`,
+      "导出备份并清理",
+      async () => {
+        const confirmation = document.querySelector("#clear-test-data-confirmation")?.value || "";
+        if (confirmation !== "CLEAR SIMPLEPAY TEST DATA") {
+          showToast("确认文本必须完全等于 CLEAR SIMPLEPAY TEST DATA");
+          return;
+        }
+        try {
+          const result = { deleted: {}, skipped: {}, backupStatus: "disabled legacy flow" };
+          const deleted = Object.entries(result.deleted || {})
+            .map(([collectionName, count]) => `<li>${collectionName}: ${Number(count) || 0}</li>`)
+            .join("");
+          const skipped = Object.entries(result.skipped || {})
+            .map(([collectionName, count]) => `<li>${collectionName}: ${Number(count) || 0}</li>`)
+            .join("");
+          openDialog(
+            "测试数据清理完成",
+            `<p class="dialog-note">备份状态：${result.backupStatus || "已确认"}</p>
+             <p><strong>已删除</strong></p><ul>${deleted || "<li>无</li>"}</ul>
+             <p><strong>已跳过</strong></p><ul>${skipped || "<li>无</li>"}</ul>`,
+            "关闭",
+            closeDialog
+          );
+        } catch (error) {
+          showToast(`清理测试数据失败：${error.message || error.code || "未知错误"}`);
+        }
+      }
+    );
     return;
   }
   activeRole = resolveRoleForSignedInUser(user);
