@@ -1238,8 +1238,26 @@ function isLegacyDemoUser(user) {
     || (user.name === "陈杰" && normalizeInviteCode(user.inviteCode) === "CJ1003");
 }
 
-function purgeLegacyDemoUsers(data) {
-  const demoIds = new Set((data.users || []).filter(isLegacyDemoUser).map((user) => user.id));
+function isAdminAffiliateUser(user) {
+  return [user?.account, user?.email]
+    .some((value) => ADMIN_EMAILS.includes(String(value || "").toLowerCase()));
+}
+
+function legacyDemoUsersForPurge(data) {
+  return (data.users || []).filter((user) => isLegacyDemoUser(user) && !isAdminAffiliateUser(user));
+}
+
+async function deleteLegacyDemoUsersFromFirestore(users) {
+  if (!firebaseUser || !users.length) return;
+  try {
+    await Promise.all(users.map((user) => deleteDoc(doc(db, USER_COLLECTION, user.id))));
+  } catch (error) {
+    throw new Error(`删除演示用户失败：${error.message || error.code || "未知错误"}`);
+  }
+}
+
+function purgeLegacyDemoUsers(data, demoUsers = legacyDemoUsersForPurge(data)) {
+  const demoIds = new Set(demoUsers.map((user) => user.id));
   if (!demoIds.size) return;
   if (demoIds.has(data.currentUserId)) data.currentUserId = "";
   data.users = (data.users || []).filter((user) => !demoIds.has(user.id));
@@ -5832,7 +5850,14 @@ document.querySelector("#resetBtn").addEventListener("click", async () => {
     return;
   }
   exportBundle();
-  purgeLegacyDemoUsers(state);
+  const demoUsers = legacyDemoUsersForPurge(state);
+  try {
+    await deleteLegacyDemoUsersFromFirestore(demoUsers);
+  } catch (error) {
+    toast(error.message || "删除演示用户失败，已停止清空操作");
+    return;
+  }
+  purgeLegacyDemoUsers(state, demoUsers);
   clearBusinessTestData();
   resetPlanForm();
   addAdminLog("清空演示数据", "系统", "移除旧演示用户；保留真实用户、推荐关系和配套规则；清空订单、奖励、提现和流水");
