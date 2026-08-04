@@ -2439,11 +2439,16 @@ async function deleteAffiliateTestUserFromAdmin(userId) {
   }
   try {
     await callDeleteAffiliateTestUserFunction(user.id, confirmation);
+  } catch (error) {
+    toast(`删除测试用户失败：${error.message || error.code || "未知错误"}`);
+    return;
+  }
+  try {
     state = await loadState();
     renderAll();
     toast("测试用户及关联联盟资料已删除");
   } catch (error) {
-    toast(`删除测试用户失败：${error.message || error.code || "未知错误"}`);
+    toast("用户已删除，但页面刷新失败");
   }
 }
 
@@ -3753,6 +3758,7 @@ function renderAdminRiskRules() {
   const target = document.querySelector("#adminRiskList");
   if (!target) return;
   const planCooldowns = state.plans.map((plan) => `${plan.name}: ${planRepeatCooldownHours(plan)} 小时`).join(" / ");
+  const rewardPoolLimit = Math.max(0, ...(state.plans || []).map((item) => planRepeatCredits(item)));
   const orderIssues = orderRiskIssues(state);
   const rewardIssues = rewardIntegrityIssues(state);
   const withdrawIssues = withdrawRiskIssues(state);
@@ -3789,7 +3795,7 @@ function renderAdminRiskRules() {
     {
       title: "奖励池派发规则",
       rows: [
-        `用户每直接推荐 1 人解锁 1 个奖励池资格，最多 ${planRepeatCredits(plan)} 个；买家不会接收自己这笔复购的奖励池奖励。`,
+        `用户每直接推荐 1 人解锁 1 个奖励池资格，当前配套最多 ${rewardPoolLimit || 0} 个；买家不会接收自己这笔复购的奖励池奖励。`,
         "系统优先派发给奖励池中排队最早且未冻结的用户。",
         "派发成功后接收人扣 1 个奖励池资格。",
       ],
