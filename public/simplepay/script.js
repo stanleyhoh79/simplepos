@@ -312,51 +312,10 @@ function downloadJson(filename, data) {
 }
 
 async function exportSystemBackupJson() {
-  const collectionNames = [
-    "wallets",
-    "merchants",
-    "transactions",
-    "rechargeRequests",
-    "withdrawRequests",
-    "merchantOrders",
-    "paymentIntents",
-    "refundRequests",
-    "merchantRefundIntents",
-    "settlementRequests",
-    "integrationJobs",
-    "sales",
-    "kycRequests",
-    "marketingItems",
-    "supportTickets",
-    "adminUsers",
-    "payAuditLogs",
-  ];
-  const entries = await Promise.all(
-    collectionNames.map(async (name) => {
-      const snapshot = await getDocs(collection(db, name));
-      return [name, snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))];
-    })
-  );
-  const configSnap = await getDoc(doc(db, "systemConfig", "main"));
-  const collections = Object.fromEntries(entries);
-  const backupSummary = {
-    exportedAt: new Date().toISOString(),
-    exportedBy: currentUser?.email || "-",
-    collectionCount: collectionNames.length,
-    documentCount: entries.reduce((total, [, docs]) => total + docs.length, 0),
-  };
-  const backup = {
-    exportedAt: backupSummary.exportedAt,
-    exportedBy: backupSummary.exportedBy,
-    projectId: firebaseConfig.projectId,
-    collections,
-    systemConfig: configSnap.exists() ? { id: "main", ...configSnap.data() } : null,
-  };
+  const backup = await callMoneyFunction("exportSimplePayBackup", {});
   downloadJson(`oneminpay-backup-${new Date().toISOString().slice(0, 10)}.json`, backup);
-  await setDoc(doc(db, "systemConfig", "main"), { lastBackup: backupSummary, updatedAt: serverTimestamp() }, { merge: true });
-  systemConfig = { ...systemConfig, lastBackup: backupSummary };
-  renderSystemConfig();
   showToast("Backup JSON exported");
+  return backup;
 }
 
 function exportMerchantOrdersCsv() {

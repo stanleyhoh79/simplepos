@@ -97,6 +97,14 @@ const TEST_DATA_COLLECTIONS = [
   "sales",
 ];
 
+const BACKUP_COLLECTIONS = [
+  ...TEST_DATA_COLLECTIONS,
+  "merchants",
+  "adminUsers",
+  "systemConfig",
+  "payAuditLogs",
+];
+
 const DELETE_BATCH_SIZE = 400;
 
 function isExplicitTestMerchant(data) {
@@ -128,6 +136,31 @@ async function getSimplePayCleanupPreview() {
     },
   };
 }
+
+function backupValue(value) {
+  if (value instanceof admin.firestore.Timestamp) return value.toDate().toISOString();
+  if (Array.isArray(value)) return value.map(backupValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, backupValue(item)]));
+  }
+  return value;
+}
+
+exports.exportSimplePayBackup = onCall(async (request) => {
+  const reviewer = await requireAdmin(request);
+  const snapshots = await Promise.all(BACKUP_COLLECTIONS.map((collectionName) => db.collection(collectionName).get()));
+  const collections = Object.fromEntries(
+    BACKUP_COLLECTIONS.map((collectionName, index) => [
+      collectionName,
+      snapshots[index].docs.map((item) => ({ id: item.id, ...backupValue(item.data()) })),
+    ])
+  );
+  return {
+    exportedAt: new Date().toISOString(),
+    exportedBy: reviewer.email,
+    collections,
+  };
+});
 
 exports.previewSimplePayTestData = onCall(async (request) => {
   await requireAdmin(request);
