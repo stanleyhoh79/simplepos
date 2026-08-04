@@ -97,6 +97,14 @@ const TEST_DATA_COLLECTIONS = [
   "sales",
 ];
 
+const MERCHANT_TEST_OPTION = "merchants";
+const MERCHANT_EMBEDDED_DATA_OPTION = "merchantEmbeddedData";
+const CLEARABLE_SIMPLEPAY_OPTIONS = [
+  ...TEST_DATA_COLLECTIONS,
+  MERCHANT_TEST_OPTION,
+  MERCHANT_EMBEDDED_DATA_OPTION,
+];
+
 const BACKUP_COLLECTIONS = [
   ...TEST_DATA_COLLECTIONS,
   "merchants",
@@ -122,17 +130,49 @@ async function deleteDocumentsInBatches(documents) {
   return deleted;
 }
 
+async function clearMerchantEmbeddedDataInBatches(documents) {
+  let merchantsProcessed = 0;
+  for (let index = 0; index < documents.length; index += DELETE_BATCH_SIZE) {
+    const batch = db.batch();
+    documents.slice(index, index + DELETE_BATCH_SIZE).forEach((item) => {
+      batch.update(item.ref, { orders: [], transactions: [] });
+    });
+    await batch.commit();
+    merchantsProcessed += Math.min(DELETE_BATCH_SIZE, documents.length - index);
+  }
+  return merchantsProcessed;
+}
+
 async function getSimplePayCleanupPreview() {
   const snapshots = await Promise.all(TEST_DATA_COLLECTIONS.map((collectionName) => db.collection(collectionName).get()));
   const collections = Object.fromEntries(
     TEST_DATA_COLLECTIONS.map((collectionName, index) => [collectionName, snapshots[index].size])
   );
   const merchantSnapshot = await db.collection("merchants").get();
+  const merchantsWithEmbeddedData = merchantSnapshot.docs.filter((item) => {
+    const data = item.data();
+    return (Array.isArray(data.orders) && data.orders.length > 0)
+      || (Array.isArray(data.transactions) && data.transactions.length > 0);
+  });
+  const embeddedOrderCount = merchantSnapshot.docs.reduce(
+    (total, item) => total + (Array.isArray(item.data().orders) ? item.data().orders.length : 0),
+    0
+  );
+  const embeddedTransactionCount = merchantSnapshot.docs.reduce(
+    (total, item) => total + (Array.isArray(item.data().transactions) ? item.data().transactions.length : 0),
+    0
+  );
+  const testEligible = merchantSnapshot.docs.filter((item) => isExplicitTestMerchant(item.data())).length;
+  collections[MERCHANT_TEST_OPTION] = testEligible;
+  collections[MERCHANT_EMBEDDED_DATA_OPTION] = merchantsWithEmbeddedData.length;
   return {
     collections,
     merchants: {
       total: merchantSnapshot.size,
-      testEligible: merchantSnapshot.docs.filter((item) => isExplicitTestMerchant(item.data())).length,
+      testEligible,
+      withEmbeddedOrders: merchantSnapshot.docs.filter((item) => Array.isArray(item.data().orders) && item.data().orders.length > 0).length,
+      embeddedOrderCount,
+      embeddedTransactionCount,
     },
   };
 }
@@ -177,7 +217,7 @@ exports.clearSimplePayTestData = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "Export a backup before clearing test data.");
   }
   const selectedCollections = request.data && request.data.selectedCollections;
-  if (!Array.isArray(selectedCollections) || selectedCollections.some((name) => typeof name !== "string" || !TEST_DATA_COLLECTIONS.includes(name))) {
+  if (!Array.isArray(selectedCollections) || selectedCollections.some((name) => typeof name !== "string" || !CLEARABLE_SIMPLEPAY_OPTIONS.includes(name))) {
     throw new HttpsError("invalid-argument", "selectedCollections must contain only approved SimplePay business collections.");
   }
   const selected = new Set(selectedCollections);
@@ -194,8 +234,43 @@ exports.clearSimplePayTestData = onCall(async (request) => {
 
   const merchantSnapshot = await db.collection("merchants").get();
   const testMerchants = merchantSnapshot.docs.filter((item) => isExplicitTestMerchant(item.data()));
-  deleted.merchants = await deleteDocumentsInBatches(testMerchants);
-  skipped.merchants = merchantSnapshot.size - deleted.merchants;
+  deleted.merchants = selected.has(MERCHANT_TEST_OPTION)
+    ? await deleteDocumentsInBatches(testMerchants)
+    : 0;
+  skipped.merchants = selected.has(MERCHANT_TEST_OPTION) ? merchantSnapshot.size - deleted.merchants : merchantSnapshot.size;
+
+  const merchantsWithEmbeddedData = merchantSnapshot.docs.filter((item) => {
+    const data = item.data();
+    return (Array.isArray(data.orders) && data.orders.length > 0)
+      || (Array.isArray(data.transactions) && data.transactions.length > 0);
+  });
+  const embeddedMerchantsToClear = selected.has(MERCHANT_TEST_OPTION)
+    ? merchantsWithEmbeddedData.filter((item) => !isExplicitTestMerchant(item.data()))
+    : merchantsWithEmbeddedData;
+  const embeddedOrdersCleared = embeddedMerchantsToClear.reduce(
+    (total, item) => total + (Array.isArray(item.data().orders) ? item.data().orders.length : 0),
+    0
+  );
+  const embeddedTransactionsCleared = embeddedMerchantsToClear.reduce(
+    (total, item) => total + (Array.isArray(item.data().transactions) ? item.data().transactions.length : 0),
+    0
+  );
+  const merchantsProcessed = selected.has(MERCHANT_EMBEDDED_DATA_OPTION)
+    ? await clearMerchantEmbeddedDataInBatches(embeddedMerchantsToClear)
+    : 0;
+  const embeddedRecordsCleared = selected.has(MERCHANT_EMBEDDED_DATA_OPTION)
+    ? embeddedOrdersCleared + embeddedTransactionsCleared
+    : 0;
+  deleted[MERCHANT_EMBEDDED_DATA_OPTION] = embeddedRecordsCleared;
+  skipped[MERCHANT_EMBEDDED_DATA_OPTION] = selected.has(MERCHANT_EMBEDDED_DATA_OPTION)
+    ? merchantSnapshot.size - merchantsProcessed
+    : merchantSnapshot.size;
+  const merchantEmbeddedData = {
+    merchantsProcessed,
+    ordersCleared: selected.has(MERCHANT_EMBEDDED_DATA_OPTION) ? embeddedOrdersCleared : 0,
+    transactionsCleared: selected.has(MERCHANT_EMBEDDED_DATA_OPTION) ? embeddedTransactionsCleared : 0,
+    recordsCleared: embeddedRecordsCleared,
+  };
 
   const backupStatus = "client JSON backup exported and confirmed";
   await db.collection("payAuditLogs").add({
@@ -204,13 +279,13 @@ exports.clearSimplePayTestData = onCall(async (request) => {
     module: "System config",
     action: "Clear SimplePay test data",
     target: "test business data",
-    detail: JSON.stringify({ selectedCollections: [...selected], deleted, skipped, backupStatus }),
+    detail: JSON.stringify({ selectedCollections: [...selected], deleted, skipped, merchantEmbeddedData, backupStatus }),
     result: "success",
     createdAt: new Date().toISOString(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  return { deleted, skipped, backupStatus };
+  return { deleted, skipped, merchantEmbeddedData, backupStatus };
 });
 
 function ledgerRecord({
