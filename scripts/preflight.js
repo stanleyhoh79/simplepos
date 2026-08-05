@@ -464,6 +464,30 @@ const affiliateRefundCore = affiliateRefundCoreStart >= 0 && affiliateRefundCore
   ? affiliateFunctions.slice(affiliateRefundCoreStart, affiliateRefundCoreEnd)
   : "";
 const directAffiliateRefundStateWrite = /\b(?:addDoc|setDoc|updateDoc|deleteDoc)\s*\([\s\S]{0,240}?(?:["']amsystemOrders["']|["']amsystemReversalCases["'])/.test(affiliateScript);
+const k6SimplePayScript = read("public/simplepay/script.js");
+const k6SimplePayFunctions = read("functions/simplepay.js");
+const walletMirrorHelper = read("functions/wallet-affiliate-balance.js");
+const paymentFunctionStart = k6SimplePayFunctions.indexOf("async function createMerchantPaymentData");
+const paymentFunctionEnd = k6SimplePayFunctions.indexOf("exports.createMerchantPayment", paymentFunctionStart);
+const merchantPaymentCore = k6SimplePayFunctions.slice(paymentFunctionStart, paymentFunctionEnd);
+const merchantRefundStart = k6SimplePayFunctions.indexOf("exports.reviewMerchantRefund = onCall");
+const merchantRefundEnd = k6SimplePayFunctions.indexOf("exports.previewAffiliateWalletReconciliation", merchantRefundStart);
+const merchantRefundCore = k6SimplePayFunctions.slice(merchantRefundStart, merchantRefundEnd);
+const posReversalStart = affiliateFunctions.indexOf("async function reversePosOrderData");
+const posReversalEnd = affiliateFunctions.indexOf("exports.reversePosOrder = onCall", posReversalStart);
+const posReversalCore = affiliateFunctions.slice(posReversalStart, posReversalEnd);
+const affiliateSaveStateStart = affiliateScript.indexOf("async function saveState()");
+const affiliateSaveStateEnd = affiliateScript.indexOf("async function syncAdminCollection", affiliateSaveStateStart);
+const affiliateSaveState = affiliateScript.slice(affiliateSaveStateStart, affiliateSaveStateEnd);
+const externalOrdersRulesStart = affiliateRules.indexOf("match /amsystemExternalOrders/{externalOrderId}");
+const externalOrdersRulesEnd = affiliateRules.indexOf("match /amsystemReversalCases/{caseId}", externalOrdersRulesStart);
+const externalOrdersRules = affiliateRules.slice(externalOrdersRulesStart, externalOrdersRulesEnd);
+const payMerchantStart = k6SimplePayScript.indexOf("async function payMerchant");
+const payMerchantEnd = k6SimplePayScript.indexOf("async function loadMerchants", payMerchantStart);
+const payMerchantClient = k6SimplePayScript.slice(payMerchantStart, payMerchantEnd);
+const transferStart = k6SimplePayScript.indexOf("async function transferToUser");
+const transferEnd = k6SimplePayScript.indexOf("function showOnlyView", transferStart);
+const transferCore = k6SimplePayScript.slice(transferStart, transferEnd);
 
 check(
   !directAffiliateRefundRequestWrite
@@ -495,6 +519,54 @@ check(
     && !affiliateRefundCore.includes("partialRefund")
     && affiliateRejectReview.includes("refundReviewHold: admin.firestore.FieldValue.delete()"),
   "Affiliate refund requests are callable-only, enforce order ownership, reuse the refund core, and keep reversal reviews atomic"
+);
+
+check(
+  walletMirrorHelper.includes("applyWalletAndAffiliatePointChange")
+    && walletMirrorHelper.includes("balanceAfter = balanceBefore + change")
+    && walletMirrorHelper.includes("points: balanceAfter")
+    && walletMirrorHelper.includes("idempotencyKey")
+    && !walletMirrorHelper.includes("nextBalance")
+    && merchantPaymentCore.includes("await applyWalletAndAffiliatePointChange(tx")
+    && merchantRefundCore.includes("await applyWalletAndAffiliatePointChange(tx")
+    && affiliateFunctions.includes("const walletChange = await creditSimplePayWallet(tx")
+    && affiliateRefundCore.includes("await applyWalletAndAffiliatePointChange(tx")
+    && k6SimplePayFunctions.includes("exports.previewAffiliateWalletReconciliation = onCall")
+    && k6SimplePayFunctions.includes("recommendedMirrorValue: walletBalance")
+    && !k6SimplePayFunctions.slice(k6SimplePayFunctions.indexOf("exports.previewAffiliateWalletReconciliation"), k6SimplePayFunctions.indexOf("exports.submitMerchantSettlement")).includes("tx.set")
+    && k6SimplePayScript.includes('callMoneyFunction("createMerchantPayment"')
+    && !k6SimplePayScript.slice(k6SimplePayScript.indexOf("async function payMerchant"), k6SimplePayScript.indexOf("async function loadMerchants")).includes("runTransaction")
+    && k6SimplePayScript.includes("未识别商家收款码，无法安全扣除钱包余额")
+    && affiliateRules.includes("allow create, update, delete: if false;"),
+  "Wallet balance is server-authoritative, mirrors affiliate points atomically, and payment/refund paths have no client balance fallback"
+);
+
+check(
+  posReversalCore.includes("await applyWalletAndAffiliatePointChange(tx")
+    && posReversalCore.includes("idempotencyKey: `pos-reversal:${externalOrderId}`")
+    && !posReversalCore.includes("points: nextPoints")
+    && !posReversalCore.includes('collection("amsystemPointLogs").doc()')
+    && walletMirrorHelper.includes("affiliateUserId = \"\"")
+    && walletMirrorHelper.includes('collection("walletBalanceOperations").doc(key)')
+    && !walletMirrorHelper.includes("wallet.transactions.some")
+    && merchantPaymentCore.includes("if (walletChange.duplicate)")
+    && merchantRefundCore.includes("if (walletChange.duplicate)")
+    && affiliateRefundCore.includes("if (walletChange.duplicate)")
+    && affiliateFunctions.includes("exports.setAffiliateUserFrozenState = onCall")
+    && affiliateSaveState.includes("该后台操作正在迁移，暂不可用")
+    && !affiliateSaveState.includes("syncAdminCollection(pointLogsRef")
+    && affiliateScript.includes("callSetAffiliateUserFrozenState(user.id, frozen")
+    && externalOrdersRules.includes("allow write: if affIsAdmin();")
+    && !externalOrdersRules.includes("allow create, update, delete: if false;")
+    && k6SimplePayScript.includes("merchantPaymentSession")
+    && k6SimplePayScript.includes("crypto?.randomUUID")
+    && payMerchantClient.includes("clientRequestId")
+    && !payMerchantClient.includes("Date.now()")
+    && transferCore.includes('throw new Error("此功能正在升级，暂不可用。")')
+    && k6SimplePayScript.includes('if (!usesSecureMoneyFunctions()) throw new Error("此功能正在升级，暂不可用。");')
+    && affiliateRules.includes("match /walletBalanceOperations/{operationId}")
+    && affiliateRules.includes("match /amsystemAdminOperations/{operationId}"),
+  "K6 follow-up keeps POS reversals atomic, uses stable idempotency, protects admin writes, and disables unmigrated client money paths"
 );
 
 if (failures) {

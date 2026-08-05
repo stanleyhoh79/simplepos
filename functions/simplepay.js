@@ -1,6 +1,7 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
+const { applyWalletAndAffiliatePointChange } = require("./wallet-affiliate-balance");
 
 if (!admin.apps.length) admin.initializeApp();
 
@@ -569,7 +570,11 @@ exports.reviewWithdrawalRequest = onCall(async (request) => {
 async function createMerchantPaymentData(data, payer) {
   const merchantId = text(data && data.merchantId);
   const merchantName = text(data && data.merchantName);
-  const externalOrderId = safeExternalId(data && data.externalOrderId);
+  const clientRequestId = text(data && data.clientRequestId);
+  const externalOrderId = safeExternalId(clientRequestId || (data && data.externalOrderId));
+  if (clientRequestId && safeExternalId(data && data.externalOrderId) !== externalOrderId) {
+    throw new HttpsError("invalid-argument", "clientRequestId and externalOrderId must match.");
+  }
   const amount = positiveInteger(data && data.amount, "amount");
   if (!merchantId) throw new HttpsError("invalid-argument", "merchantId is required.");
 
@@ -623,6 +628,7 @@ async function createMerchantPaymentData(data, payer) {
       id: orderId,
       externalOrderId,
       idempotencyKey: externalOrderId,
+      clientRequestId: clientRequestId || externalOrderId,
       sourceSystem: text(data && data.sourceSystem) || "simplepay",
       posOrderId: text(data && data.posOrderId),
       branchId: text(data && data.branchId),
@@ -654,16 +660,46 @@ async function createMerchantPaymentData(data, payer) {
       createdAt
     );
 
+    const walletChange = await applyWalletAndAffiliatePointChange(tx, {
+      uid: payer.uid,
+      delta: -amount,
+      source: "merchant-payment",
+      idempotencyKey: `merchant-payment:${orderId}`,
+      description: `商家付款 ${orderId}`,
+      metadata: { orderId, merchantId },
+      walletEntry: payerEntry,
+      ledgerEntry: ledgerRecord({
+        id: `merchant-payment:${orderId}`,
+        account: payer.email,
+        accountId: payer.uid,
+        accountRole: "user",
+        counterparty: order.merchantName,
+        type: "商家付款",
+        amount,
+        amountText: `- ${amount} 积分`,
+        source: "安全云函数",
+        sourceType: "payment",
+        detail: `Order: ${orderId} / External: ${externalOrderId}`,
+        createdAt,
+      }),
+    });
+    if (walletChange.duplicate) {
+      return {
+        id: orderId,
+        status: "approved",
+        paymentReference: orderId,
+        duplicate: true,
+        walletBalance: walletChange.walletBalanceAfter,
+      };
+    }
+    tx.set(payerRef, {
+      dailyUsage: nextDailyUsage(wallet.dailyUsage, amount),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
     tx.create(orderRef, {
       ...order,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
-    tx.set(payerRef, {
-      balance: Number(wallet.balance || 0) - amount,
-      dailyUsage: nextDailyUsage(wallet.dailyUsage, amount),
-      transactions: [payerEntry, ...(wallet.transactions || [])].slice(0, 30),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
     tx.set(merchantRef, {
       totalReceived: Number(merchant.totalReceived || 0) + amount,
       settlementBalance: Number(merchant.settlementBalance || 0) + amount,
@@ -676,20 +712,6 @@ async function createMerchantPaymentData(data, payer) {
       }, ...(merchant.notifications || [])].slice(0, 20),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
-    tx.create(db.collection("transactions").doc(`payment-user-${orderId}`), ledgerRecord({
-      id: `payment-user-${orderId}`,
-      account: payer.email,
-      accountId: payer.uid,
-      accountRole: "user",
-      counterparty: order.merchantName,
-      type: "商家付款",
-      amount,
-      amountText: `- ${amount} 积分`,
-      source: "安全云函数",
-      sourceType: "payment",
-      detail: `Order: ${orderId} / External: ${externalOrderId}`,
-      createdAt
-    }));
     tx.create(db.collection("transactions").doc(`payment-merchant-${orderId}`), ledgerRecord({
       id: `payment-merchant-${orderId}`,
       account: order.merchantName,
@@ -1003,6 +1025,44 @@ exports.reviewMerchantRefund = onCall(async (request) => {
         "Merchant settlement balance is insufficient for this refund."
       );
     }
+    const walletEntry = transactionItem(
+      `refund-${requestId}`,
+      "商家退款",
+      refund.merchantName || refund.merchantId,
+      `+ ${amount} 积分`,
+      reviewedAt
+    );
+    const refundLedger = ledgerRecord({
+      id: `refund-${requestId}`,
+      account: refund.customerEmail || refund.customerId,
+      accountId: refund.customerId,
+      accountRole: "user",
+      counterparty: refund.merchantName || refund.merchantId,
+      type: approved ? "退款审批通过" : "退款审批拒绝",
+      amount,
+      amountText: approved ? `+ ${amount} 积分` : `${amount} 积分`,
+      source: "安全云函数",
+      sourceType: "refund",
+      status: approved ? "已通过" : "已拒绝",
+      statusClass: approved ? "success" : "danger",
+      detail: `Order: ${order.id}`,
+      createdAt: reviewedAt,
+    });
+    if (approved) {
+      const walletChange = await applyWalletAndAffiliatePointChange(tx, {
+        uid: refund.customerId,
+        delta: amount,
+        source: "merchant-refund",
+        idempotencyKey: `merchant-refund:${requestId}`,
+        description: `商家退款 ${refund.orderId}`,
+        metadata: { orderId: refund.orderId, merchantId: refund.merchantId },
+        walletEntry,
+        ledgerEntry: refundLedger,
+      });
+      if (walletChange.duplicate) {
+        return { id: requestId, status: "approved", duplicate: true };
+      }
+    }
 
     tx.update(refundRef, {
       status,
@@ -1030,29 +1090,7 @@ exports.reviewMerchantRefund = onCall(async (request) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
-    if (approved) {
-      tx.set(walletRef, {
-        balance: Number(wallet.balance || 0) + amount,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-    }
-
-    tx.create(db.collection("transactions").doc(`refund-${requestId}`), ledgerRecord({
-      id: `refund-${requestId}`,
-      account: refund.customerEmail || refund.customerId,
-      accountId: refund.customerId,
-      accountRole: "user",
-      counterparty: refund.merchantName || refund.merchantId,
-      type: approved ? "退款审批通过" : "退款审批拒绝",
-      amount,
-      amountText: approved ? `+ ${amount} 积分` : `${amount} 积分`,
-      source: "安全云函数",
-      sourceType: "refund",
-      status: approved ? "已通过" : "已拒绝",
-      statusClass: approved ? "success" : "danger",
-      detail: `Order: ${order.id}`,
-      createdAt: reviewedAt
-    }));
+    if (!approved) tx.create(db.collection("transactions").doc(`refund-${requestId}`), refundLedger);
     const auditRef = db.collection("payAuditLogs").doc();
     tx.create(auditRef, {
       id: auditRef.id,
@@ -1073,6 +1111,43 @@ exports.reviewMerchantRefund = onCall(async (request) => {
     });
     return { id: requestId, status, duplicate: false };
   });
+});
+
+exports.previewAffiliateWalletReconciliation = onCall(async (request) => {
+  await requireAdmin(request);
+  const userId = text(request.data && request.data.userId);
+  if (!userId) throw new HttpsError("invalid-argument", "userId is required.");
+  const walletRef = db.collection("wallets").doc(userId);
+  const affiliateRef = db.collection("amsystemUsers").doc(userId);
+  const [walletSnapshot, affiliateSnapshot, pointLogsSnapshot, merchantOrdersSnapshot, affiliateOrdersSnapshot] = await Promise.all([
+    walletRef.get(),
+    affiliateRef.get(),
+    db.collection("amsystemPointLogs").where("userId", "==", userId).limit(12).get(),
+    db.collection("merchantOrders").where("customerId", "==", userId).limit(12).get(),
+    db.collection("amsystemOrders").where("userId", "==", userId).limit(12).get(),
+  ]);
+  if (!walletSnapshot.exists) throw new HttpsError("not-found", "Wallet not found.");
+  const wallet = walletSnapshot.data();
+  const walletBalance = Number(wallet.balance || 0);
+  const affiliatePoints = affiliateSnapshot.exists ? Number(affiliateSnapshot.data().points || 0) : null;
+  const summarize = (snapshot, fields) => snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return Object.fromEntries(["id", ...fields].map((field) => [field, field === "id" ? doc.id : data[field] ?? null]));
+  });
+  return {
+    userId,
+    walletBalance,
+    affiliatePoints,
+    difference: affiliatePoints === null ? null : walletBalance - affiliatePoints,
+    recommendedMirrorValue: walletBalance,
+    needsCorrection: affiliatePoints !== null && affiliatePoints !== walletBalance,
+    recent: {
+      walletTransactions: (Array.isArray(wallet.transactions) ? wallet.transactions : []).slice(0, 12),
+      pointLogs: summarize(pointLogsSnapshot, ["change", "balance", "source", "note", "createdAt"]),
+      merchantOrders: summarize(merchantOrdersSnapshot, ["amount", "status", "merchantId", "createdAt"]),
+      affiliateOrders: summarize(affiliateOrdersSnapshot, ["points", "status", "amount", "createdAt"]),
+    },
+  };
 });
 
 exports.submitMerchantSettlement = onCall(async (request) => {

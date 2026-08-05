@@ -1,6 +1,7 @@
 ﻿const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
+const { applyWalletAndAffiliatePointChange } = require("./wallet-affiliate-balance");
 
 if (!admin.apps.length) admin.initializeApp();
 
@@ -335,22 +336,22 @@ async function creditSimplePayWallet(tx, { order, buyer, plan, points, createdAt
     throw new HttpsError("failed-precondition", "Affiliate user is missing a Firebase UID.");
   }
 
-  const walletRef = db.collection("wallets").doc(walletUserId);
-  const walletSnap = await tx.get(walletRef);
-  const wallet = walletSnap.exists ? walletSnap.data() : {};
   const entry = simplePayWalletTransaction(order, plan, points, createdAt);
-  if (hasWalletTransaction(wallet, entry.source)) return false;
-
-  tx.set(walletRef, {
-    email: text(buyer.account),
-    displayName: text(buyer.name) || text(buyer.account),
-    role: "user",
-    status: wallet.status || "active",
-    balance: Number(wallet.balance || 0) + Number(points || 0),
-    transactions: [entry, ...(Array.isArray(wallet.transactions) ? wallet.transactions : [])].slice(0, 30),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
-  return true;
+  return applyWalletAndAffiliatePointChange(tx, {
+    uid: walletUserId,
+    affiliateUserId: order.userId,
+    delta: Number(points || 0),
+    source: "affiliate-package",
+    idempotencyKey: `affiliate-confirm:${order.id}`,
+    description: `联盟配套积分发放 ${order.id}`,
+    metadata: { orderId: order.id, planId: text(plan.id) },
+    walletEntry: entry,
+    createWalletIfMissing: true,
+    walletFields: {
+      email: text(buyer.account),
+      displayName: text(buyer.name) || text(buyer.account),
+    },
+  });
 }
 
 
@@ -441,7 +442,6 @@ async function confirmOrderById(orderId, adminEmail, reviewNote = "") {
       ? currentPackageUntil
       : paidAt;
     const packageUntil = addDays(packageBase, validDays);
-    const newBalance = Number(buyer.points || 0) + pointChange;
     const currentRepeatCredits = Number(buyer.repeatCredits || 0);
     const nextRepeatCredits = currentRepeatCredits;
     const buyerQueueAt = buyer.repeatCreditQueueAt || "";
@@ -469,7 +469,7 @@ async function confirmOrderById(orderId, adminEmail, reviewNote = "") {
       repeatReceiver = eligibleUsers[0] || null;
     }
 
-    const walletCredited = await creditSimplePayWallet(tx, {
+    const walletChange = await creditSimplePayWallet(tx, {
       order,
       buyer,
       plan,
@@ -485,12 +485,11 @@ async function confirmOrderById(orderId, adminEmail, reviewNote = "") {
       reviewedAt: paidAt,
       reviewedBy: adminEmail,
       reviewNote: normalizedReviewNote,
-      simplePayWalletSyncedAt: walletCredited ? paidAt : (order.simplePayWalletSyncedAt || paidAt),
+      simplePayWalletSyncedAt: !walletChange.duplicate ? paidAt : (order.simplePayWalletSyncedAt || paidAt),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     tx.set(userRef, {
-      points: newBalance,
       slots: Math.max(Number(buyer.slots || 0), Number(plan.slots || 0)),
       repeatCredits: nextRepeatCredits,
       repeatCreditQueueAt: buyerQueueAt,
@@ -500,17 +499,6 @@ async function confirmOrderById(orderId, adminEmail, reviewNote = "") {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    const pointLogRef = db.collection("amsystemPointLogs").doc();
-    tx.set(pointLogRef, {
-      id: pointLogRef.id,
-      userId: order.userId,
-      change: pointChange,
-      balance: newBalance,
-      source: order.id,
-      note: `${plan.name} 积分发放`,
-      createdAt: paidAt,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
 
     if (actualType === "first" && !buyer.refundReviewHold && referrerSnap && referrerSnap.exists) {
       const referrer = referrerSnap.data();
@@ -597,7 +585,7 @@ async function confirmOrderById(orderId, adminEmail, reviewNote = "") {
       `金额 ${money(orderAmount)}`,
       `积分 +${pointChange}`,
       `配套有效至 ${packageUntil}`,
-      `SimplePay ${walletCredited ? "已入账" : "已存在"}`,
+      `SimplePay ${!walletChange.duplicate ? "已入账" : "已存在"}`,
       normalizedReviewNote ? `备注：${normalizedReviewNote}` : "无备注",
     ].join(" / ");
     createAdminLog(tx, "确认付款", order.id, confirmationDetail, adminEmail);
@@ -609,7 +597,7 @@ async function confirmOrderById(orderId, adminEmail, reviewNote = "") {
       type: actualType,
       points: pointChange,
       packageUntil,
-      walletCredited,
+      walletCredited: !walletChange.duplicate,
       paidAt,
     };
   });
@@ -732,12 +720,10 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
 
     const wallet = walletSnapshot && walletSnapshot.exists ? walletSnapshot.data() : null;
     const hasReleasedRewards = rewards.some(rewardHasReleasedValue);
-    const hasInsufficientBuyerPoints = Number(buyer.points || 0) < pointChange;
     const hasMissingWallet = !walletRef || !wallet;
     const hasInsufficientWalletPoints = Boolean(wallet) && Number(wallet.balance || 0) < pointChange;
     const riskReasons = [
       hasReleasedRewards ? "released-rewards" : "",
-      hasInsufficientBuyerPoints ? "insufficient-affiliate-points" : "",
       hasMissingWallet ? "wallet-not-found" : "",
       hasInsufficientWalletPoints ? "insufficient-wallet-points" : "",
     ].filter(Boolean);
@@ -841,8 +827,6 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
       .filter((doc) => doc.id !== safeOrderId)
       .map((doc) => ({ id: doc.id, ...doc.data() }));
     const entitlements = entitlementFromOrders(remainingOrders);
-    const nextAffiliatePoints = Number(buyer.points || 0) - pointChange;
-    const nextWalletBalance = Number(wallet.balance || 0) - pointChange;
     const plan = order.planSnapshot || { name: "联盟配套" };
     const walletEntry = simplePayRefundTransaction(
       { id: safeOrderId },
@@ -851,6 +835,30 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
       createdAt,
       normalizedRefundReference
     );
+    const walletChange = await applyWalletAndAffiliatePointChange(tx, {
+      uid: walletUserId,
+      affiliateUserId: order.userId,
+      delta: -pointChange,
+      source: "affiliate-refund",
+      idempotencyKey: `affiliate-refund:${safeOrderId}`,
+      description: `会员配套退款 ${normalizedRefundReference}`,
+      metadata: { orderId: safeOrderId, refundReference: normalizedRefundReference },
+      walletEntry,
+    });
+    if (walletChange.duplicate) {
+      return {
+        ok: true,
+        status: "refunded",
+        duplicate: true,
+        orderId: safeOrderId,
+        caseId: caseRef.id,
+        pointsReversed: pointChange,
+        affiliatePointBalance: walletChange.walletBalanceAfter,
+        walletPointBalance: walletChange.walletBalanceAfter,
+      };
+    }
+    const nextAffiliatePoints = walletChange.walletBalance;
+    const nextWalletBalance = walletChange.walletBalance;
 
     rewards.forEach((reward) => {
       tx.set(reward.ref, {
@@ -886,34 +894,12 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
     });
 
     tx.set(userRef, {
-      points: nextAffiliatePoints,
       ...entitlements,
       refundReviewHold: admin.firestore.FieldValue.delete(),
       refundReviewOrderId: admin.firestore.FieldValue.delete(),
       refundReviewStartedAt: admin.firestore.FieldValue.delete(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
-
-    tx.set(walletRef, {
-      balance: nextWalletBalance,
-      transactions: [
-        walletEntry,
-        ...(Array.isArray(wallet.transactions) ? wallet.transactions : []),
-      ].slice(0, 30),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    const pointLogRef = db.collection("amsystemPointLogs").doc();
-    tx.set(pointLogRef, {
-      id: pointLogRef.id,
-      userId: order.userId,
-      change: -pointChange,
-      balance: nextAffiliatePoints,
-      source: safeOrderId,
-      note: `会员配套退款 ${normalizedRefundReference}`,
-      createdAt,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
 
     tx.set(orderRef, {
       status: "refunded",
@@ -990,6 +976,53 @@ exports.confirmOrder = onCall(
     return confirmOrderById(orderId, adminEmail, reviewNote);
   },
 );
+
+exports.setAffiliateUserFrozenState = onCall(async (request) => {
+  const adminEmail = assertAdmin(request);
+  const data = request.data || {};
+  const userId = safeExternalId(data.userId);
+  const frozen = Boolean(data.frozen);
+  const reason = text(data.reason).slice(0, 500);
+  const idempotencyKey = safeExternalId(data.idempotencyKey);
+  const userRef = db.collection("amsystemUsers").doc(userId);
+  const operationRef = db.collection("amsystemAdminOperations").doc(`freeze:${idempotencyKey}`);
+
+  return db.runTransaction(async (tx) => {
+    const [operationSnapshot, userSnapshot] = await Promise.all([
+      tx.get(operationRef),
+      tx.get(userRef),
+    ]);
+    if (operationSnapshot.exists) return { ...operationSnapshot.data().result, duplicate: true };
+    if (!userSnapshot.exists) throw new HttpsError("not-found", "Affiliate user not found.");
+    const user = userSnapshot.data();
+    const account = text(user.account || user.email).toLowerCase();
+    if (ADMIN_EMAILS.includes(account) || ADMIN_EMAILS.includes(text(user.ownerEmail).toLowerCase())) {
+      throw new HttpsError("failed-precondition", "Administrator accounts cannot be frozen.");
+    }
+    const updatedAt = new Date().toISOString();
+    const result = { userId, frozen, updatedAt };
+    tx.update(userRef, {
+      frozen,
+      frozenAt: frozen ? updatedAt : admin.firestore.FieldValue.delete(),
+      unfrozenAt: frozen ? admin.firestore.FieldValue.delete() : updatedAt,
+      frozenReason: reason || admin.firestore.FieldValue.delete(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    createAdminLog(tx, frozen ? "冻结用户" : "解冻用户", userId, reason || "无备注", adminEmail);
+    tx.create(operationRef, {
+      id: operationRef.id,
+      type: "affiliate-user-frozen-state",
+      userId,
+      frozen,
+      reason,
+      adminEmail,
+      result,
+      createdAt: updatedAt,
+      completedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { ...result, duplicate: false };
+  });
+});
 
 
 exports.refundAffiliateOrder = onCall(
@@ -1170,7 +1203,7 @@ exports.syncAffiliateWalletPoints = onCall(async (request) => {
         name: text(order.planSnapshot?.name) || text(order.planName) || "联盟配套",
       };
       const syncedAt = new Date().toISOString();
-      const walletCredited = await creditSimplePayWallet(tx, {
+      const walletChange = await creditSimplePayWallet(tx, {
         order,
         buyer,
         plan,
@@ -1178,13 +1211,13 @@ exports.syncAffiliateWalletPoints = onCall(async (request) => {
         createdAt: syncedAt,
       });
 
-      if (walletCredited) {
+      if (!walletChange.duplicate) {
         tx.set(orderDoc.ref, {
           simplePayWalletSyncedAt: syncedAt,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
       }
-      return walletCredited ? "credited" : "skipped";
+      return walletChange.duplicate ? "skipped" : "credited";
     });
 
     if (result === "credited") credited += 1;
@@ -1436,9 +1469,14 @@ async function reversePosOrderData(data, adminEmail) {
 
     const rewards = rewardsSnapshot.docs.map((doc) => ({ id: doc.id, ref: doc.ref, ...doc.data() }));
     const buyer = userSnapshot.data();
+    const walletUserId = walletIdForAffiliateOrder(order, buyer);
+    const walletRef = walletUserId ? db.collection("wallets").doc(walletUserId) : null;
+    const walletSnapshot = walletRef ? await tx.get(walletRef) : null;
+    const wallet = walletSnapshot && walletSnapshot.exists ? walletSnapshot.data() : null;
     const hasReleasedRewards = rewards.some(rewardHasReleasedValue);
-    const hasInsufficientBuyerPoints = Number(buyer.points || 0) < Number(order.points || 0);
-    const requiresManualReview = hasReleasedRewards || hasInsufficientBuyerPoints;
+    const hasMissingWallet = !wallet;
+    const hasInsufficientWalletPoints = Boolean(wallet) && Number(wallet.balance || 0) < Number(order.points || 0);
+    const requiresManualReview = hasReleasedRewards || hasMissingWallet || hasInsufficientWalletPoints;
     const createdAt = new Date().toISOString();
 
     if (requiresManualReview) {
@@ -1472,7 +1510,8 @@ async function reversePosOrderData(data, adminEmail) {
         status: "review-required",
         riskReasons: [
           hasReleasedRewards ? "released-rewards" : "",
-          hasInsufficientBuyerPoints ? "insufficient-buyer-points" : ""
+          hasMissingWallet ? "wallet-not-found" : "",
+          hasInsufficientWalletPoints ? "insufficient-wallet-points" : ""
         ].filter(Boolean),
         releasedRewardAmount: rewards.reduce(
           (sum, reward) => sum + Number(reward.releasedAmount || reward.amount || 0),
@@ -1486,7 +1525,7 @@ async function reversePosOrderData(data, adminEmail) {
         tx,
         "POS 退款待复核",
         order.id,
-        `${refundReference} / ${hasReleasedRewards ? "已释放奖励" : "买家积分不足"}，相关奖励已冻结`,
+        `${refundReference} / ${hasReleasedRewards ? "已释放奖励" : "钱包积分不足"}，相关奖励已冻结`,
         adminEmail
       );
       return {
@@ -1513,7 +1552,26 @@ async function reversePosOrderData(data, adminEmail) {
       .filter((doc) => doc.id !== order.id)
       .map((doc) => ({ id: doc.id, ...doc.data() }));
     const entitlements = entitlementFromOrders(remainingOrders);
-    const nextPoints = Math.max(Number(buyer.points || 0) - Number(order.points || 0), 0);
+    const walletEntry = simplePayRefundTransaction(
+      { id: order.id },
+      order.planSnapshot || { name: "联盟配套" },
+      Number(order.points || 0),
+      createdAt,
+      refundReference
+    );
+    const walletChange = await applyWalletAndAffiliatePointChange(tx, {
+      uid: walletUserId,
+      affiliateUserId: order.userId,
+      delta: -Number(order.points || 0),
+      source: "pos-reversal",
+      idempotencyKey: `pos-reversal:${externalOrderId}`,
+      description: `POS 订单反转 ${refundReference}`,
+      metadata: { externalOrderId, orderId: order.id, refundReference },
+      walletEntry,
+    });
+    if (walletChange.duplicate) {
+      return { ok: true, status: "reversed", duplicate: true, caseId: caseRef.id };
+    }
 
     rewards.forEach((reward) => {
       tx.set(reward.ref, {
@@ -1545,21 +1603,9 @@ async function reversePosOrderData(data, adminEmail) {
       });
     });
     tx.set(userRef, {
-      points: nextPoints,
       ...entitlements,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
-    const pointLogRef = db.collection("amsystemPointLogs").doc();
-    tx.set(pointLogRef, {
-      id: pointLogRef.id,
-      userId: order.userId,
-      change: -Number(order.points || 0),
-      balance: nextPoints,
-      source: order.id,
-      note: `POS refund reversal ${refundReference}`,
-      createdAt,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
     tx.set(orderRef, {
       status: "refunded",
       refundedAt: createdAt,

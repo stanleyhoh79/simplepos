@@ -578,6 +578,12 @@ service cloud.firestore {
               "updatedAt"
             ]);
         }
+
+        function payWalletFinancialStateIsUnchanged() {
+          return request.resource.data.balance == resource.data.balance
+            && request.resource.data.transactions == resource.data.transactions
+            && request.resource.data.dailyUsage == resource.data.dailyUsage;
+        }
     
         function payMerchantProfileUpdateIsSafe() {
           return request.resource.data.status == resource.data.status
@@ -624,14 +630,8 @@ service cloud.firestore {
               && request.resource.data.balance == 0
               && request.resource.data.status == "active"
             );
-          allow update: if payIsAdmin()
-            || (
-              payIsSelf(userId)
-              && (
-                !paySecureMoneyEnabled()
-                || payWalletProfileUpdateIsSafe()
-              )
-            );
+          allow update: if payWalletFinancialStateIsUnchanged()
+            && (payIsAdmin() || (payIsSelf(userId) && payWalletProfileUpdateIsSafe()));
           allow delete: if payIsAdmin();
         }
     
@@ -831,6 +831,17 @@ service cloud.firestore {
               || resource.data.referrerId == ""
             );
         }
+
+        function affUserFinancialStateIsUnchanged() {
+          return request.resource.data.points == resource.data.points
+            && request.resource.data.slots == resource.data.slots
+            && request.resource.data.repeatCredits == resource.data.repeatCredits
+            && request.resource.data.repeatCreditQueueAt == resource.data.repeatCreditQueueAt
+            && request.resource.data.repeatCooldownUntil == resource.data.repeatCooldownUntil
+            && request.resource.data.packageUntil == resource.data.packageUntil
+            && request.resource.data.level == resource.data.level
+            && request.resource.data.frozen == resource.data.frozen;
+        }
     
         function affOwnerCanCreateOrder() {
           return affSignedIn()
@@ -901,7 +912,8 @@ service cloud.firestore {
         match /amsystemUsers/{userId} {
           allow read: if affIsAdmin() || affIsOwner(userId);
           allow create: if affIsAdmin() || affUserCreateIsSafe(userId);
-          allow update: if affIsAdmin() || affUserUpdateIsSafe(userId);
+          allow update: if affUserFinancialStateIsUnchanged()
+            && (affIsAdmin() || affUserUpdateIsSafe(userId));
           allow delete: if affIsAdmin();
         }
     
@@ -959,7 +971,17 @@ service cloud.firestore {
     
         match /amsystemPointLogs/{logId} {
           allow read: if affIsAdmin() || (affSignedIn() && request.auth.uid == resource.data.userId);
-          allow write: if affIsAdmin();
+          allow create, update, delete: if false;
+        }
+
+        match /walletBalanceOperations/{operationId} {
+          allow read: if affIsAdmin();
+          allow create, update, delete: if false;
+        }
+
+        match /amsystemAdminOperations/{operationId} {
+          allow read: if affIsAdmin();
+          allow create, update, delete: if false;
         }
     
         match /amsystemRepeatCreditLogs/{logId} {
