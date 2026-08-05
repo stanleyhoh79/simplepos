@@ -911,7 +911,13 @@ service cloud.firestore {
           allow update: if affIsAdmin() || affOwnerCanUpdateOrder();
           allow delete: if affIsAdmin();
         }
-    
+
+        match /amsystemRefundRequests/{requestId} {
+          allow read: if affIsAdmin()
+            || (affSignedIn() && request.auth.uid == resource.data.userId);
+          allow create, update, delete: if false;
+        }
+
         match /amsystemExternalOrders/{externalOrderId} {
           allow read: if affIsAdmin()
             || (affSignedIn() && request.auth.uid == resource.data.userId);

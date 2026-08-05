@@ -86,6 +86,16 @@ function assertAdmin(request) {
   return email;
 }
 
+function requireAffiliateMember(request) {
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "Authentication required.");
+  }
+  return {
+    uid: request.auth.uid,
+    email: text(request.auth.token && request.auth.token.email).toLowerCase(),
+  };
+}
+
 function addDays(date, days) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
@@ -608,23 +618,55 @@ async function confirmOrderById(orderId, adminEmail, reviewNote = "") {
 }
 
 
-async function refundAffiliateOrderById(orderId, adminEmail, refundReference, reason = "") {
+async function refundAffiliateOrderById(orderId, adminEmail, refundReference, reason = "", review = {}) {
   const safeOrderId = safeExternalId(orderId);
   const normalizedRefundReference = text(refundReference).slice(0, 160);
   const normalizedReason = text(reason).slice(0, 500) || "会员配套退款";
+  const refundRequestId = text(review.refundRequestId);
+  const reviewNote = text(review.reviewNote).slice(0, 500);
   if (!normalizedRefundReference) {
     throw new HttpsError("invalid-argument", "refundReference is required.");
   }
 
   const orderRef = db.collection("amsystemOrders").doc(safeOrderId);
   const caseRef = db.collection("amsystemReversalCases").doc(`REF-${safeOrderId}`);
+  const refundRequestRef = refundRequestId
+    ? db.collection("amsystemRefundRequests").doc(safeExternalId(refundRequestId))
+    : null;
 
   return db.runTransaction(async (tx) => {
-    const orderSnapshot = await tx.get(orderRef);
+    const [orderSnapshot, refundRequestSnapshot] = await Promise.all([
+      tx.get(orderRef),
+      refundRequestRef ? tx.get(refundRequestRef) : Promise.resolve(null),
+    ]);
     if (!orderSnapshot.exists) throw new HttpsError("not-found", "Order not found.");
     const order = orderSnapshot.data();
 
+    if (refundRequestRef) {
+      if (!refundRequestSnapshot.exists) {
+        throw new HttpsError("not-found", "Affiliate refund request not found.");
+      }
+      const refundRequest = refundRequestSnapshot.data();
+      if (refundRequest.orderId !== safeOrderId || refundRequest.userId !== order.userId) {
+        throw new HttpsError("failed-precondition", "Refund request does not match the order.");
+      }
+      if (!["pending", "reversal-review"].includes(refundRequest.status)) {
+        throw new HttpsError("failed-precondition", "Refund request has already been handled.");
+      }
+    }
+
     if (order.status === "refunded") {
+      if (refundRequestRef) {
+        tx.set(refundRequestRef, {
+          status: "approved",
+          refundReference: normalizedRefundReference,
+          reviewedBy: adminEmail,
+          reviewedAt: new Date().toISOString(),
+          reviewNote,
+          completedAt: new Date().toISOString(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
       return {
         ok: true,
         status: "refunded",
@@ -733,6 +775,18 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
         createdAt,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
+      if (refundRequestRef) {
+        tx.set(refundRequestRef, {
+          status: "reversal-review",
+          refundReference: normalizedRefundReference,
+          reviewedBy: adminEmail,
+          reviewedAt: createdAt,
+          reviewNote,
+          result: "reversal-review",
+          riskReasons,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
       createAdminLog(
         tx,
         "会员配套退款待复核",
@@ -855,6 +909,18 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
       resolvedBy: adminEmail,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
+    if (refundRequestRef) {
+      tx.set(refundRequestRef, {
+        status: "approved",
+        refundReference: normalizedRefundReference,
+        reviewedBy: adminEmail,
+        reviewedAt: createdAt,
+        reviewNote,
+        result: "refunded",
+        completedAt: createdAt,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
 
     createAdminLog(
       tx,
@@ -905,6 +971,109 @@ exports.refundAffiliateOrder = onCall(
     );
   },
 );
+
+exports.submitAffiliateRefundRequest = onCall(async (request) => {
+  const member = requireAffiliateMember(request);
+  const data = request.data || {};
+  const orderId = safeExternalId(data.orderId);
+  const reason = text(data.reason).slice(0, 500);
+  if (!reason) throw new HttpsError("invalid-argument", "reason is required.");
+
+  const orderRef = db.collection("amsystemOrders").doc(orderId);
+  const userRef = db.collection("amsystemUsers").doc(member.uid);
+  const refundRequestRef = db.collection("amsystemRefundRequests").doc(orderId);
+  return db.runTransaction(async (tx) => {
+    const [orderSnapshot, userSnapshot, existingSnapshot] = await Promise.all([
+      tx.get(orderRef),
+      tx.get(userRef),
+      tx.get(refundRequestRef),
+    ]);
+    if (!orderSnapshot.exists) throw new HttpsError("not-found", "Order not found.");
+    const order = orderSnapshot.data();
+    if (order.userId !== member.uid) {
+      throw new HttpsError("permission-denied", "You can only request a refund for your own order.");
+    }
+    if (order.status !== "paid") {
+      throw new HttpsError("failed-precondition", "Only paid orders can request a refund.");
+    }
+    if (!userSnapshot.exists) throw new HttpsError("not-found", "Affiliate user not found.");
+    if (existingSnapshot.exists) {
+      const existing = existingSnapshot.data();
+      if (["pending", "approved", "completed", "reversal-review"].includes(existing.status)) {
+        throw new HttpsError("already-exists", "A refund request already exists for this order.");
+      }
+    }
+
+    const buyer = userSnapshot.data();
+    const createdAt = new Date().toISOString();
+    tx.set(refundRequestRef, {
+      id: refundRequestRef.id,
+      orderId,
+      userId: member.uid,
+      account: text(buyer.account) || member.email,
+      email: member.email,
+      points: Number(order.points || 0),
+      amountMyr: Number(order.amount || 0),
+      reason,
+      status: "pending",
+      createdAt,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { id: refundRequestRef.id, orderId, status: "pending" };
+  });
+});
+
+exports.reviewAffiliateRefundRequest = onCall(async (request) => {
+  const adminEmail = assertAdmin(request);
+  const data = request.data || {};
+  const requestId = safeExternalId(data.requestId);
+  const approved = Boolean(data.approved);
+  const reviewNote = text(data.reviewNote).slice(0, 500);
+  const refundReference = text(data.refundReference).slice(0, 160);
+  const refundRequestRef = db.collection("amsystemRefundRequests").doc(requestId);
+
+  if (!approved) {
+    return db.runTransaction(async (tx) => {
+      const refundRequestSnapshot = await tx.get(refundRequestRef);
+      if (!refundRequestSnapshot.exists) throw new HttpsError("not-found", "Affiliate refund request not found.");
+      const refundRequest = refundRequestSnapshot.data();
+      if (!["pending", "reversal-review"].includes(refundRequest.status)) {
+        throw new HttpsError("failed-precondition", "Refund request has already been handled.");
+      }
+      const reviewedAt = new Date().toISOString();
+      tx.update(refundRequestRef, {
+        status: "rejected",
+        reviewedBy: adminEmail,
+        reviewedAt,
+        reviewNote,
+        result: "rejected",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      createAdminLog(
+        tx,
+        "拒绝会员退款申请",
+        refundRequest.orderId,
+        `${requestId} / ${reviewNote || "无备注"}`,
+        adminEmail
+      );
+      return { id: requestId, orderId: refundRequest.orderId, status: "rejected" };
+    });
+  }
+
+  if (!refundReference) {
+    throw new HttpsError("invalid-argument", "refundReference is required for approval.");
+  }
+  const refundRequestSnapshot = await refundRequestRef.get();
+  if (!refundRequestSnapshot.exists) throw new HttpsError("not-found", "Affiliate refund request not found.");
+  const refundRequest = refundRequestSnapshot.data();
+  return refundAffiliateOrderById(
+    refundRequest.orderId,
+    adminEmail,
+    refundReference,
+    refundRequest.reason,
+    { refundRequestId: requestId, reviewNote }
+  );
+});
 
 exports.syncAffiliateWalletPoints = onCall(async (request) => {
   const adminEmail = assertAdmin(request);

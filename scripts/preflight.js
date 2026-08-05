@@ -438,6 +438,38 @@ check(
   "SimplePay refunds are callable-only, rules deny client writes, and reviews write an audit record"
 );
 
+const affiliateScript = read("public/affiliate/app.js");
+const affiliateFunctions = read("functions/affiliate.js");
+const affiliateRules = read("firestore.rules");
+const directAffiliateRefundRequestWrite = /\b(?:addDoc|setDoc|updateDoc|deleteDoc)\s*\([\s\S]{0,240}?["']amsystemRefundRequests["']/.test(affiliateScript)
+  || affiliateScript.includes('doc(db, "amsystemRefundRequests"');
+const affiliateRefundRulesStart = affiliateRules.indexOf("match /amsystemRefundRequests/{requestId}");
+const affiliateRefundRulesEnd = affiliateRules.indexOf("match /amsystemExternalOrders/{externalOrderId}", affiliateRefundRulesStart);
+const affiliateRefundRules = affiliateRefundRulesStart >= 0 && affiliateRefundRulesEnd > affiliateRefundRulesStart
+  ? affiliateRules.slice(affiliateRefundRulesStart, affiliateRefundRulesEnd)
+  : "";
+const affiliateSubmitStart = affiliateFunctions.indexOf("exports.submitAffiliateRefundRequest = onCall");
+const affiliateReviewStart = affiliateFunctions.indexOf("exports.reviewAffiliateRefundRequest = onCall");
+const affiliateReviewEnd = affiliateFunctions.indexOf("exports.syncAffiliateWalletPoints = onCall", affiliateReviewStart);
+const affiliateSubmit = affiliateSubmitStart >= 0 && affiliateReviewStart > affiliateSubmitStart
+  ? affiliateFunctions.slice(affiliateSubmitStart, affiliateReviewStart)
+  : "";
+const affiliateReview = affiliateReviewStart >= 0 && affiliateReviewEnd > affiliateReviewStart
+  ? affiliateFunctions.slice(affiliateReviewStart, affiliateReviewEnd)
+  : "";
+const affiliateRejectReview = affiliateReview.slice(0, affiliateReview.indexOf("if (!refundReference)"));
+
+check(
+  !directAffiliateRefundRequestWrite
+    && affiliateRefundRules.includes("allow create, update, delete: if false;")
+    && affiliateSubmit.includes("order.userId !== member.uid")
+    && affiliateSubmit.includes('order.status !== "paid"')
+    && affiliateReview.includes("return refundAffiliateOrderById(")
+    && affiliateRejectReview.includes('status: "rejected"')
+    && !affiliateRejectReview.includes('collection("amsystemOrders")'),
+  "Affiliate refund requests are callable-only, enforce order ownership, reuse the refund core, and reject without changing orders"
+);
+
 if (failures) {
   console.error(`\n${failures} preflight check(s) failed.`);
   process.exit(1);
