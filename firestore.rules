@@ -979,6 +979,11 @@ service cloud.firestore {
           allow create, update, delete: if false;
         }
 
+        match /walletAffiliateReconciliations/{reconciliationId} {
+          allow read: if affIsAdmin();
+          allow create, update, delete: if false;
+        }
+
         match /amsystemAdminOperations/{operationId} {
           allow read: if affIsAdmin();
           allow create, update, delete: if false;
@@ -990,7 +995,8 @@ service cloud.firestore {
         }
     
         match /amsystemAdminLogs/{logId} {
-          allow read, write: if affIsAdmin();
+          allow read: if affIsAdmin();
+          allow create, update, delete: if false;
         }
 
         match /affiliateAgreements/{agreementId} {

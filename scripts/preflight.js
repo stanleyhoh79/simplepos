@@ -488,6 +488,15 @@ const payMerchantClient = k6SimplePayScript.slice(payMerchantStart, payMerchantE
 const transferStart = k6SimplePayScript.indexOf("async function transferToUser");
 const transferEnd = k6SimplePayScript.indexOf("function showOnlyView", transferStart);
 const transferCore = k6SimplePayScript.slice(transferStart, transferEnd);
+const reconciliationStart = k6SimplePayFunctions.indexOf("exports.applyAffiliateWalletReconciliation = onCall");
+const reconciliationEnd = k6SimplePayFunctions.indexOf("exports.submitMerchantSettlement = onCall", reconciliationStart);
+const reconciliationFunction = k6SimplePayFunctions.slice(reconciliationStart, reconciliationEnd);
+const reconciliationRulesStart = affiliateRules.indexOf("match /walletAffiliateReconciliations/{reconciliationId}");
+const reconciliationRulesEnd = affiliateRules.indexOf("match /amsystemAdminOperations/{operationId}", reconciliationRulesStart);
+const reconciliationRules = affiliateRules.slice(reconciliationRulesStart, reconciliationRulesEnd);
+const adminLogRulesStart = affiliateRules.indexOf("match /amsystemAdminLogs/{logId}");
+const adminLogRulesEnd = affiliateRules.indexOf("match /affiliateAgreements/{agreementId}", adminLogRulesStart);
+const adminLogRules = affiliateRules.slice(adminLogRulesStart, adminLogRulesEnd);
 
 check(
   !directAffiliateRefundRequestWrite
@@ -567,6 +576,37 @@ check(
     && affiliateRules.includes("match /walletBalanceOperations/{operationId}")
     && affiliateRules.includes("match /amsystemAdminOperations/{operationId}"),
   "K6 follow-up keeps POS reversals atomic, uses stable idempotency, protects admin writes, and disables unmigrated client money paths"
+);
+
+check(
+  reconciliationFunction.includes("exports.applyAffiliateWalletReconciliation = onCall")
+    && reconciliationFunction.includes("await requireAdmin(request)")
+    && reconciliationFunction.includes("APPLY WALLET MIRROR RECONCILIATION")
+    && reconciliationFunction.includes("reason.length < 5")
+    && reconciliationFunction.includes("wallet-reconciliation:${userId}:")
+    && reconciliationFunction.includes("return db.runTransaction")
+    && reconciliationFunction.includes("walletBalance !== expectedWalletBalance")
+    && reconciliationFunction.includes("stale-preview / 数据已变化，请重新预览")
+    && reconciliationFunction.includes('status: "already-reconciled"')
+    && reconciliationFunction.includes('collection("walletAffiliateReconciliations")')
+    && reconciliationFunction.includes('source: "admin-controlled-reconciliation"')
+    && reconciliationFunction.includes('source: "wallet-reconciliation"')
+    && reconciliationFunction.includes('action: "wallet-affiliate-reconciliation"')
+    && reconciliationFunction.includes("tx.update(affiliateRef")
+    && !reconciliationFunction.includes("tx.update(walletRef")
+    && !reconciliationFunction.includes("tx.set(walletRef")
+    && !reconciliationFunction.includes("transactions:")
+    && k6SimplePayScript.includes("openAffiliateWalletReconciliationConfirmation")
+    && k6SimplePayScript.includes("wallet-reconciliation-reason")
+    && k6SimplePayScript.includes("wallet-reconciliation-confirmation")
+    && k6SimplePayScript.includes("APPLY WALLET MIRROR RECONCILIATION")
+    && !k6SimplePayScript.includes("wallet-reconciliation-target")
+    && reconciliationRules.includes("allow read: if affIsAdmin();")
+    && reconciliationRules.includes("allow create, update, delete: if false;")
+    && adminLogRules.includes("allow create, update, delete: if false;")
+    && !k6SimplePayFunctions.includes("applyAllAffiliateWallet")
+    && !k6SimplePayFunctions.includes("automatic-reconciliation"),
+  "Wallet-to-affiliate reconciliation is admin-only, preview-guarded, audited, and never changes wallet funds"
 );
 
 if (failures) {

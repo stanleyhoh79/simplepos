@@ -1150,6 +1150,138 @@ exports.previewAffiliateWalletReconciliation = onCall(async (request) => {
   };
 });
 
+exports.applyAffiliateWalletReconciliation = onCall(async (request) => {
+  const reviewer = await requireAdmin(request);
+  const data = request.data || {};
+  const userId = text(data.userId);
+  const affiliateUserId = text(data.affiliateUserId) || userId;
+  const expectedWalletBalance = Number(data.expectedWalletBalance);
+  const expectedAffiliatePoints = Number(data.expectedAffiliatePoints);
+  const reason = text(data.reason);
+  const confirmationText = text(data.confirmationText);
+  const idempotencyKey = text(data.idempotencyKey);
+  const requiredPrefix = `wallet-reconciliation:${userId}:`;
+
+  if (!userId || userId.length > 160 || userId.includes("/")) {
+    throw new HttpsError("invalid-argument", "userId is required.");
+  }
+  if (!affiliateUserId || affiliateUserId.length > 160 || affiliateUserId.includes("/")) {
+    throw new HttpsError("invalid-argument", "affiliateUserId is invalid.");
+  }
+  if (confirmationText !== "APPLY WALLET MIRROR RECONCILIATION") {
+    throw new HttpsError("failed-precondition", "确认文字不正确。");
+  }
+  if (reason.length < 5) throw new HttpsError("invalid-argument", "原因至少需要 5 个字符。");
+  if (!idempotencyKey.startsWith(requiredPrefix) || idempotencyKey.length > 240 || idempotencyKey.includes("/")) {
+    throw new HttpsError("invalid-argument", "idempotencyKey is invalid.");
+  }
+  if (!Number.isSafeInteger(expectedWalletBalance) || !Number.isSafeInteger(expectedAffiliatePoints)) {
+    throw new HttpsError("invalid-argument", "预览余额格式无效，请重新预览。");
+  }
+
+  const walletRef = db.collection("wallets").doc(userId);
+  const affiliateRef = db.collection("amsystemUsers").doc(affiliateUserId);
+  const reconciliationRef = db.collection("walletAffiliateReconciliations").doc(idempotencyKey);
+  return db.runTransaction(async (tx) => {
+    const [walletSnapshot, affiliateSnapshot, reconciliationSnapshot] = await Promise.all([
+      tx.get(walletRef),
+      tx.get(affiliateRef),
+      tx.get(reconciliationRef),
+    ]);
+    if (reconciliationSnapshot.exists) {
+      return { ...(reconciliationSnapshot.data().result || {}), duplicate: true };
+    }
+    if (!walletSnapshot.exists) throw new HttpsError("not-found", "Wallet not found.");
+    if (!affiliateSnapshot.exists) throw new HttpsError("not-found", "Affiliate user not found.");
+
+    const walletBalance = Number(walletSnapshot.data().balance || 0);
+    const affiliatePointsBefore = Number(affiliateSnapshot.data().points || 0);
+    if (!Number.isSafeInteger(walletBalance) || walletBalance < 0 || !Number.isSafeInteger(affiliatePointsBefore)) {
+      throw new HttpsError("failed-precondition", "当前余额数据无效，无法执行对账。");
+    }
+    if (walletBalance !== expectedWalletBalance || affiliatePointsBefore !== expectedAffiliatePoints) {
+      throw new HttpsError("failed-precondition", "stale-preview / 数据已变化，请重新预览。");
+    }
+    if (walletBalance === affiliatePointsBefore) {
+      return {
+        status: "already-reconciled",
+        userId,
+        affiliateUserId,
+        walletBalance,
+        affiliatePointsBefore,
+        affiliatePointsAfter: affiliatePointsBefore,
+        differenceBefore: 0,
+        duplicate: false,
+      };
+    }
+
+    const performedAt = new Date().toISOString();
+    const differenceBefore = walletBalance - affiliatePointsBefore;
+    const result = {
+      status: "reconciled",
+      userId,
+      affiliateUserId,
+      walletBalance,
+      affiliatePointsBefore,
+      affiliatePointsAfter: walletBalance,
+      differenceBefore,
+      duplicate: false,
+    };
+    const pointLogRef = db.collection("amsystemPointLogs").doc(`wallet-reconciliation-${idempotencyKey}`);
+    const adminLogRef = db.collection("amsystemAdminLogs").doc();
+
+    tx.update(affiliateRef, {
+      points: walletBalance,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    tx.create(reconciliationRef, {
+      id: reconciliationRef.id,
+      userId,
+      affiliateUserId,
+      walletBalance,
+      affiliatePointsBefore,
+      affiliatePointsAfter: walletBalance,
+      differenceBefore,
+      reason,
+      performedBy: reviewer.email,
+      performedAt,
+      idempotencyKey,
+      source: "admin-controlled-reconciliation",
+      schemaVersion: 1,
+      result,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    tx.create(pointLogRef, {
+      id: pointLogRef.id,
+      userId,
+      affiliateUserId,
+      change: differenceBefore,
+      balance: walletBalance,
+      source: "wallet-reconciliation",
+      reason,
+      adminEmail: reviewer.email,
+      idempotencyKey,
+      createdAt: performedAt,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    tx.create(adminLogRef, {
+      id: adminLogRef.id,
+      action: "wallet-affiliate-reconciliation",
+      targetUserId: userId,
+      affiliateUserId,
+      before: affiliatePointsBefore,
+      after: walletBalance,
+      difference: differenceBefore,
+      reason,
+      actor: reviewer.email,
+      adminEmail: reviewer.email,
+      createdAt: performedAt,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return result;
+  });
+});
+
 exports.submitMerchantSettlement = onCall(async (request) => {
   const merchantUser = requireUser(request);
   const amount = positiveInteger(request.data && request.data.amount, "amount");
