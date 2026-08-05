@@ -747,6 +747,11 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
     const walletPointBalance = wallet ? Number(wallet.balance || 0) : null;
     const pointShortfall = Math.max(pointChange - affiliatePointBalance, 0);
     const walletShortfall = wallet ? Math.max(pointChange - walletPointBalance, 0) : pointChange;
+    const reviewMessage = walletShortfall > 0
+      ? `当前 SimplePay 钱包仍差 ${walletShortfall} 积分，请会员补足后再重新检查。`
+      : pointShortfall > 0
+        ? `当前联盟积分仍差 ${pointShortfall} 积分，请会员补足后再重新检查。`
+        : "当前退款仍需人工复核，请管理员处理风险原因后再重新检查。";
 
     if (requiresManualReview) {
       rewards.forEach((reward) => {
@@ -828,7 +833,7 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
         orderId: safeOrderId,
         caseId: caseRef.id,
         riskReasons,
-        message: `当前仍差 ${Math.max(pointShortfall, walletShortfall)} 积分，请会员补足后再重新检查`,
+        message: reviewMessage,
       };
     }
 

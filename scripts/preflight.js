@@ -475,12 +475,23 @@ check(
     && !directAffiliateRefundStateWrite
     && affiliateScript.includes('data-action="recheck"')
     && affiliateScript.includes("重新检查并完成退款")
+    && affiliateScript.includes("function refundReviewSnapshot(request)")
+    && affiliateScript.includes('item.id === `REF-${request.orderId}`')
+    && affiliateScript.includes("暂无复核快照")
+    && !affiliateScript.includes("request.orderPoints || request.points || 0")
+    && !affiliateScript.includes("request.affiliatePointBalance || 0")
+    && !affiliateScript.includes("request.walletPointBalance || 0")
     && affiliateRefundCore.includes("refundReviewHold: true")
     && affiliateRefundCore.includes("refundReviewHold: admin.firestore.FieldValue.delete()")
     && affiliateRefundCore.includes('status: "completed"')
     && affiliateRefundCore.includes('result: "refunded"')
     && affiliateRefundCore.includes("pointShortfall")
     && affiliateRefundCore.includes("walletShortfall")
+    && affiliateRefundCore.includes("当前 SimplePay 钱包仍差")
+    && affiliateRefundCore.includes("tx.get(userRef)")
+    && affiliateRefundCore.includes("tx.get(walletRef)")
+    && affiliateRefundCore.includes('collection("amsystemRewards")')
+    && affiliateRefundCore.includes("tx.get(orderRef)")
     && !affiliateRefundCore.includes("partialRefund")
     && affiliateRejectReview.includes("refundReviewHold: admin.firestore.FieldValue.delete()"),
   "Affiliate refund requests are callable-only, enforce order ownership, reuse the refund core, and keep reversal reviews atomic"

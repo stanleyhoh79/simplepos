@@ -3618,6 +3618,33 @@ function ensureAffiliateRefundReviewPanel() {
   return panel;
 }
 
+function hasRefundReviewSnapshotValue(value) {
+  return value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value));
+}
+
+function refundReviewSnapshot(request) {
+  const snapshotFields = ["orderPoints", "affiliatePointBalance", "walletPointBalance"];
+  const requestHasSnapshot = snapshotFields.every((field) => hasRefundReviewSnapshotValue(request[field]));
+  const reversalCase = (state.reversalCases || []).find((item) => item.id === `REF-${request.orderId}`);
+  const reversalCaseHasSnapshot = reversalCase
+    && snapshotFields.every((field) => hasRefundReviewSnapshotValue(reversalCase[field]));
+  const source = requestHasSnapshot ? request : (reversalCaseHasSnapshot ? reversalCase : null);
+  if (!source) return null;
+  const orderPoints = Number(source.orderPoints);
+  const affiliatePointBalance = Number(source.affiliatePointBalance);
+  const walletPointBalance = Number(source.walletPointBalance);
+  const affiliateShortfall = Math.max(orderPoints - affiliatePointBalance, 0);
+  const walletShortfall = Math.max(orderPoints - walletPointBalance, 0);
+  return {
+    orderPoints,
+    affiliatePointBalance,
+    walletPointBalance,
+    affiliateShortfall,
+    walletShortfall,
+    shortfall: Math.max(affiliateShortfall, walletShortfall),
+  };
+}
+
 function renderAffiliateRefundRequests() {
   const panel = ensureAffiliateRefundReviewPanel();
   const table = panel?.querySelector("#affiliateRefundRequestTable");
@@ -3633,7 +3660,12 @@ function renderAffiliateRefundRequests() {
       const actions = actionable
         ? `${isReview ? `<button class="link" type="button" data-review-affiliate-refund="${request.id}" data-action="recheck">重新检查并完成退款</button>` : `<button class="link" type="button" data-review-affiliate-refund="${request.id}" data-action="approve">批准</button>`}<button class="link danger-link" type="button" data-review-affiliate-refund="${request.id}" data-action="reject">拒绝／取消退款申请（恢复原订单资格）</button>`
         : "-";
-      const reviewDetail = isReview ? `<span class="muted-line">风险：${(request.riskReasons || []).join("、") || "待重新核验"}<br>订单应扣积分：${points(request.orderPoints || request.points || 0)}；当前联盟积分：${points(request.affiliatePointBalance || 0)}；当前 SimplePay 钱包余额：${points(request.walletPointBalance || 0)}；差额：${points(Math.max(request.pointShortfall || 0, request.walletShortfall || 0))}</span>` : "";
+      const snapshot = isReview ? refundReviewSnapshot(request) : null;
+      const reviewDetail = isReview
+        ? snapshot
+          ? `<span class="muted-line">风险：${(request.riskReasons || []).join("、") || "待重新核验"}<br>订单应扣积分：${points(snapshot.orderPoints)}；当前联盟积分：${points(snapshot.affiliatePointBalance)}；当前 SimplePay 钱包余额：${points(snapshot.walletPointBalance)}；联盟差额：${points(snapshot.affiliateShortfall)}；钱包差额：${points(snapshot.walletShortfall)}；仍需补足：${points(snapshot.shortfall)}</span>`
+          : `<span class="muted-line">暂无复核快照</span>`
+        : "";
       return `<tr><td>${user?.name || request.account || request.email || request.userId}</td><td>${request.orderId || "-"}</td><td>${plan?.name || "-"}</td><td>${points(request.points || 0)} / ${money(request.amountMyr || 0)}</td><td>${request.reason || "-"}${request.reviewNote ? `<span class="muted-line">审核：${request.reviewNote}</span>` : ""}${reviewDetail}</td><td>${request.createdAt ? new Date(request.createdAt).toLocaleString("zh-CN") : "-"}</td><td><span class="tag ${request.status || "pending"}">${labelStatus(request.status || "pending")}</span></td><td class="actions">${actions}</td></tr>`;
     }).join("");
   table.innerHTML = sanitizeHtml(rows || `<tr><td colspan="8">暂无退款申请</td></tr>`);
