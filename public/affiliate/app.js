@@ -2582,7 +2582,7 @@ function renderMember() {
   const user = currentUser();
   const [statusClass, statusLabel] = packageStatus(user);
   const used = directReferralCount(user.id);
-  const inviteLink = firebaseUser && user.inviteCode ? `${location.origin}${location.pathname}?ref=${user.inviteCode}` : "-";
+  const inviteLink = firebaseUser && user.inviteCode && !user.refundReviewHold ? `${location.origin}${location.pathname}?ref=${user.inviteCode}` : "-";
   document.querySelector("#memberName").textContent = user.inviteCode ? `${user.name}（${user.inviteCode}）` : user.name;
   renderMemberProfileStatus(user);
   document.querySelector("#memberPoints").textContent = points(user.points);
@@ -2763,7 +2763,7 @@ function renderInviteCodeBox(user) {
   const inviteLinkBox = document.querySelector("#inviteLink");
   if (!inviteLinkBox?.parentNode) return;
   let codeBox = document.querySelector("#inviteCodeBox");
-  if (!firebaseUser || !user.inviteCode) {
+  if (!firebaseUser || !user.inviteCode || user.refundReviewHold) {
     codeBox?.remove();
     return;
   }
@@ -2969,7 +2969,7 @@ function renderMemberOrders(user) {
     const refundAction = order.status === "paid" && (!refundRequest || refundRequest.status === "rejected")
       ? `<button class="link danger-link" type="button" data-member-refund-request="${order.id}">申请退款</button>`
       : refundRequest
-        ? `<span class="muted-line">退款申请：${labelStatus(refundRequest.status)}</span>`
+        ? `<span class="muted-line">${refundRequest.status === "reversal-review" ? "退款人工复核中：已消费部分积分，请补足差额后联系管理员重新检查" : refundRequest.status === "completed" ? "退款已完成" : refundRequest.status === "rejected" ? "退款申请已拒绝" : "退款申请审核中"}</span>`
         : "";
     return `<tr><td>${order.id}</td><td>${plan?.name || "-"}</td><td>${order.type === "first" ? "首充" : "复购"}</td><td>${money(order.amount)}</td><td>${points(order.points)}</td><td><span class="tag ${order.status}">${labelStatus(order.status)}</span>${noteText}${summaryText}</td><td>${new Date(order.createdAt).toLocaleString("zh-CN")}</td><td><button class="link" type="button" data-member-order-detail="${order.id}">详情</button>${refundAction}</td></tr>`;
   }).join("");
@@ -3579,6 +3579,8 @@ function renderAdminOrders() {
       ? `<button class="link" data-confirm-order="${order.id}">确认付款</button><button class="link" data-cancel-order="${order.id}">取消订单</button>`
       : order.status === "paid"
         ? `<button class="link danger-link" data-refund-order="${order.id}">退款</button><button class="link" data-recalc-order="${order.id}">重算奖励</button>`
+        : order.status === "reversal-review"
+          ? `<button class="link" data-refund-order="${order.id}">重新检查退款（旧案件）</button>`
         : "";
     const proofHref = order.proofUrl || order.proofInlineData || "";
     const proofLink = proofHref ? ` / <a class="link" href="${proofHref}" target="_blank" rel="noopener">查看凭证</a>` : "";
@@ -3626,11 +3628,13 @@ function renderAffiliateRefundRequests() {
       const user = findUser(request.userId);
       const order = (state.orders || []).find((item) => item.id === request.orderId);
       const plan = order ? orderPlan(order) : null;
+      const isReview = request.status === "reversal-review";
       const actionable = ["pending", "reversal-review"].includes(request.status);
       const actions = actionable
-        ? `<button class="link" type="button" data-review-affiliate-refund="${request.id}" data-action="approve">批准</button><button class="link danger-link" type="button" data-review-affiliate-refund="${request.id}" data-action="reject">拒绝</button>`
+        ? `${isReview ? `<button class="link" type="button" data-review-affiliate-refund="${request.id}" data-action="recheck">重新检查并完成退款</button>` : `<button class="link" type="button" data-review-affiliate-refund="${request.id}" data-action="approve">批准</button>`}<button class="link danger-link" type="button" data-review-affiliate-refund="${request.id}" data-action="reject">拒绝／取消退款申请（恢复原订单资格）</button>`
         : "-";
-      return `<tr><td>${user?.name || request.account || request.email || request.userId}</td><td>${request.orderId || "-"}</td><td>${plan?.name || "-"}</td><td>${points(request.points || 0)} / ${money(request.amountMyr || 0)}</td><td>${request.reason || "-"}${request.reviewNote ? `<span class="muted-line">审核：${request.reviewNote}</span>` : ""}</td><td>${request.createdAt ? new Date(request.createdAt).toLocaleString("zh-CN") : "-"}</td><td><span class="tag ${request.status || "pending"}">${labelStatus(request.status || "pending")}</span></td><td class="actions">${actions}</td></tr>`;
+      const reviewDetail = isReview ? `<span class="muted-line">风险：${(request.riskReasons || []).join("、") || "待重新核验"}<br>订单应扣积分：${points(request.orderPoints || request.points || 0)}；当前联盟积分：${points(request.affiliatePointBalance || 0)}；当前 SimplePay 钱包余额：${points(request.walletPointBalance || 0)}；差额：${points(Math.max(request.pointShortfall || 0, request.walletShortfall || 0))}</span>` : "";
+      return `<tr><td>${user?.name || request.account || request.email || request.userId}</td><td>${request.orderId || "-"}</td><td>${plan?.name || "-"}</td><td>${points(request.points || 0)} / ${money(request.amountMyr || 0)}</td><td>${request.reason || "-"}${request.reviewNote ? `<span class="muted-line">审核：${request.reviewNote}</span>` : ""}${reviewDetail}</td><td>${request.createdAt ? new Date(request.createdAt).toLocaleString("zh-CN") : "-"}</td><td><span class="tag ${request.status || "pending"}">${labelStatus(request.status || "pending")}</span></td><td class="actions">${actions}</td></tr>`;
     }).join("");
   table.innerHTML = sanitizeHtml(rows || `<tr><td colspan="8">暂无退款申请</td></tr>`);
 }
@@ -5746,9 +5750,10 @@ document.body.addEventListener("click", async (event) => {
     const refundRequest = (state.refundRequests || []).find((item) => item.id === reviewAffiliateRefund.dataset.reviewAffiliateRefund);
     if (!refundRequest) return toast("找不到退款申请");
     if (!["pending", "reversal-review"].includes(refundRequest.status)) return toast("该退款申请已处理");
-    const approved = reviewAffiliateRefund.dataset.action === "approve";
+    const isRecheck = reviewAffiliateRefund.dataset.action === "recheck";
+    const approved = isRecheck || reviewAffiliateRefund.dataset.action === "approve";
     const reviewNote = window.prompt(
-      `${approved ? "批准" : "拒绝"}退款申请：${refundRequest.orderId}\n会员：${refundRequest.account || refundRequest.email || refundRequest.userId}\n积分：${points(refundRequest.points || 0)} / ${money(refundRequest.amountMyr || 0)}\n\n请输入审核备注（可留空）：`,
+      `${isRecheck ? "重新检查并完成退款" : approved ? "批准" : "拒绝／取消退款申请"}：${refundRequest.orderId}\n会员：${refundRequest.account || refundRequest.email || refundRequest.userId}\n积分：${points(refundRequest.points || 0)} / ${money(refundRequest.amountMyr || 0)}\n\n请输入审核备注（可留空）：`,
       refundRequest.reviewNote || ""
     );
     if (reviewNote === null) return;
@@ -5771,7 +5776,7 @@ document.body.addEventListener("click", async (event) => {
       state = await loadState();
       renderAll();
       if (result.status === "review-required") {
-        toast("退款已转入人工复核，订单和奖励已按服务端规则冻结");
+        toast(result.message || "退款人工复核中：已消费部分积分，请补足差额后联系管理员重新检查");
       } else if (result.status === "rejected") {
         toast("退款申请已拒绝，订单与积分未改动");
       } else if (result.duplicate) {
@@ -5790,7 +5795,7 @@ document.body.addEventListener("click", async (event) => {
   if (refundOrder) {
     if (!requireAdmin()) return;
     const order = state.orders.find((item) => item.id === refundOrder.dataset.refundOrder);
-    if (!order || order.status !== "paid") return toast("只有已支付订单可以退款");
+    if (!order || !["paid", "reversal-review"].includes(order.status)) return toast("只有已支付或退款人工复核订单可以处理");
 
     const refundReference = window.prompt(
       "请输入退款参考号（必填，例如银行退款编号或现金退款收据号）",

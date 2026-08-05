@@ -458,6 +458,12 @@ const affiliateReview = affiliateReviewStart >= 0 && affiliateReviewEnd > affili
   ? affiliateFunctions.slice(affiliateReviewStart, affiliateReviewEnd)
   : "";
 const affiliateRejectReview = affiliateReview.slice(0, affiliateReview.indexOf("if (!refundReference)"));
+const affiliateRefundCoreStart = affiliateFunctions.indexOf("async function refundAffiliateOrderById");
+const affiliateRefundCoreEnd = affiliateFunctions.indexOf("exports.confirmOrder = onCall", affiliateRefundCoreStart);
+const affiliateRefundCore = affiliateRefundCoreStart >= 0 && affiliateRefundCoreEnd > affiliateRefundCoreStart
+  ? affiliateFunctions.slice(affiliateRefundCoreStart, affiliateRefundCoreEnd)
+  : "";
+const directAffiliateRefundStateWrite = /\b(?:addDoc|setDoc|updateDoc|deleteDoc)\s*\([\s\S]{0,240}?(?:["']amsystemOrders["']|["']amsystemReversalCases["'])/.test(affiliateScript);
 
 check(
   !directAffiliateRefundRequestWrite
@@ -466,8 +472,18 @@ check(
     && affiliateSubmit.includes('order.status !== "paid"')
     && affiliateReview.includes("return refundAffiliateOrderById(")
     && affiliateRejectReview.includes('status: "rejected"')
-    && !affiliateRejectReview.includes('collection("amsystemOrders")'),
-  "Affiliate refund requests are callable-only, enforce order ownership, reuse the refund core, and reject without changing orders"
+    && !directAffiliateRefundStateWrite
+    && affiliateScript.includes('data-action="recheck"')
+    && affiliateScript.includes("重新检查并完成退款")
+    && affiliateRefundCore.includes("refundReviewHold: true")
+    && affiliateRefundCore.includes("refundReviewHold: admin.firestore.FieldValue.delete()")
+    && affiliateRefundCore.includes('status: "completed"')
+    && affiliateRefundCore.includes('result: "refunded"')
+    && affiliateRefundCore.includes("pointShortfall")
+    && affiliateRefundCore.includes("walletShortfall")
+    && !affiliateRefundCore.includes("partialRefund")
+    && affiliateRejectReview.includes("refundReviewHold: admin.firestore.FieldValue.delete()"),
+  "Affiliate refund requests are callable-only, enforce order ownership, reuse the refund core, and keep reversal reviews atomic"
 );
 
 if (failures) {

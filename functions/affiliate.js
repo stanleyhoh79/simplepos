@@ -512,7 +512,7 @@ async function confirmOrderById(orderId, adminEmail, reviewNote = "") {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    if (actualType === "first" && referrerSnap && referrerSnap.exists) {
+    if (actualType === "first" && !buyer.refundReviewHold && referrerSnap && referrerSnap.exists) {
       const referrer = referrerSnap.data();
       const rate = Number(plan.firstRate || 0);
       if (!referrer.frozen && rate > 0) {
@@ -531,7 +531,7 @@ async function confirmOrderById(orderId, adminEmail, reviewNote = "") {
       }
     }
 
-    if (actualType === "repeat" && repeatReceiver) {
+    if (actualType === "repeat" && !buyer.refundReviewHold && repeatReceiver) {
       const rate = planPoolRepeatRate(plan);
       if (rate > 0) {
         const receiverCredits = Math.max(Number(repeatReceiver.repeatCredits || 0) - 1, 0);
@@ -570,7 +570,7 @@ async function confirmOrderById(orderId, adminEmail, reviewNote = "") {
       }
     }
 
-    if (actualType === "repeat" && referrerSnap && referrerSnap.exists) {
+    if (actualType === "repeat" && !buyer.refundReviewHold && referrerSnap && referrerSnap.exists) {
       const referrer = referrerSnap.data();
       const rate = planDirectRepeatRate(plan);
       if (isActivePackage(referrer) && rate > 0) {
@@ -635,9 +635,10 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
     : null;
 
   return db.runTransaction(async (tx) => {
-    const [orderSnapshot, refundRequestSnapshot] = await Promise.all([
+    const [orderSnapshot, refundRequestSnapshot, reversalCaseSnapshot] = await Promise.all([
       tx.get(orderRef),
       refundRequestRef ? tx.get(refundRequestRef) : Promise.resolve(null),
+      tx.get(caseRef),
     ]);
     if (!orderSnapshot.exists) throw new HttpsError("not-found", "Order not found.");
     const order = orderSnapshot.data();
@@ -658,7 +659,8 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
     if (order.status === "refunded") {
       if (refundRequestRef) {
         tx.set(refundRequestRef, {
-          status: "approved",
+          status: "completed",
+          result: "refunded",
           refundReference: normalizedRefundReference,
           reviewedBy: adminEmail,
           reviewedAt: new Date().toISOString(),
@@ -674,6 +676,12 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
         orderId: safeOrderId,
         caseId: caseRef.id,
       };
+    }
+    if (refundRequestRef && refundRequestSnapshot.data().status === "reversal-review"
+      && (!reversalCaseSnapshot.exists
+        || reversalCaseSnapshot.data().status !== "review-required"
+        || order.status !== "reversal-review")) {
+      throw new HttpsError("failed-precondition", "退款复核状态不一致，请刷新后重试。");
     }
     if (!["paid", "reversal-review"].includes(order.status)) {
       throw new HttpsError("failed-precondition", "Only paid orders can be refunded.");
@@ -735,6 +743,10 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
     ].filter(Boolean);
     const requiresManualReview = riskReasons.length > 0;
     const createdAt = new Date().toISOString();
+    const affiliatePointBalance = Number(buyer.points || 0);
+    const walletPointBalance = wallet ? Number(wallet.balance || 0) : null;
+    const pointShortfall = Math.max(pointChange - affiliatePointBalance, 0);
+    const walletShortfall = wallet ? Math.max(pointChange - walletPointBalance, 0) : pointChange;
 
     if (requiresManualReview) {
       rewards.forEach((reward) => {
@@ -755,6 +767,12 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
         reversalCaseId: caseRef.id,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
+      tx.set(userRef, {
+        refundReviewHold: true,
+        refundReviewOrderId: safeOrderId,
+        refundReviewStartedAt: buyer.refundReviewStartedAt || createdAt,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
       tx.set(caseRef, {
         id: caseRef.id,
         sourceType: "affiliate-order",
@@ -765,8 +783,11 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
         status: "review-required",
         riskReasons,
         orderPoints: pointChange,
-        affiliatePointBalance: Number(buyer.points || 0),
-        walletPointBalance: wallet ? Number(wallet.balance || 0) : null,
+        affiliatePointBalance,
+        walletPointBalance,
+        pointShortfall,
+        walletShortfall,
+        lastCheckedAt: createdAt,
         releasedRewardAmount: rewards.reduce(
           (sum, reward) => sum + Number(reward.releasedAmount || 0),
           0
@@ -784,6 +805,12 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
           reviewNote,
           result: "reversal-review",
           riskReasons,
+          orderPoints: pointChange,
+          affiliatePointBalance,
+          walletPointBalance,
+          pointShortfall,
+          walletShortfall,
+          lastCheckedAt: createdAt,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
       }
@@ -801,6 +828,7 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
         orderId: safeOrderId,
         caseId: caseRef.id,
         riskReasons,
+        message: `当前仍差 ${Math.max(pointShortfall, walletShortfall)} 积分，请会员补足后再重新检查`,
       };
     }
 
@@ -855,6 +883,9 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
     tx.set(userRef, {
       points: nextAffiliatePoints,
       ...entitlements,
+      refundReviewHold: admin.firestore.FieldValue.delete(),
+      refundReviewOrderId: admin.firestore.FieldValue.delete(),
+      refundReviewStartedAt: admin.firestore.FieldValue.delete(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
 
@@ -896,7 +927,7 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
       userId: order.userId,
       refundReference: normalizedRefundReference,
       reason: normalizedReason,
-      status: "reversed",
+      status: "resolved",
       orderPoints: pointChange,
       affiliatePointBalanceBefore: Number(buyer.points || 0),
       affiliatePointBalanceAfter: nextAffiliatePoints,
@@ -911,7 +942,7 @@ async function refundAffiliateOrderById(orderId, adminEmail, refundReference, re
     }, { merge: true });
     if (refundRequestRef) {
       tx.set(refundRequestRef, {
-        status: "approved",
+        status: "completed",
         refundReference: normalizedRefundReference,
         reviewedBy: adminEmail,
         reviewedAt: createdAt,
@@ -1041,6 +1072,14 @@ exports.reviewAffiliateRefundRequest = onCall(async (request) => {
         throw new HttpsError("failed-precondition", "Refund request has already been handled.");
       }
       const reviewedAt = new Date().toISOString();
+      const orderRef = db.collection("amsystemOrders").doc(refundRequest.orderId);
+      const caseRef = db.collection("amsystemReversalCases").doc(`REF-${refundRequest.orderId}`);
+      const [orderSnapshot, userSnapshot, rewardsSnapshot, paidOrdersSnapshot] = await Promise.all([
+        tx.get(orderRef),
+        tx.get(db.collection("amsystemUsers").doc(refundRequest.userId)),
+        tx.get(db.collection("amsystemRewards").where("orderId", "==", refundRequest.orderId)),
+        tx.get(db.collection("amsystemOrders").where("userId", "==", refundRequest.userId).where("status", "==", "paid")),
+      ]);
       tx.update(refundRequestRef, {
         status: "rejected",
         reviewedBy: adminEmail,
@@ -1049,6 +1088,32 @@ exports.reviewAffiliateRefundRequest = onCall(async (request) => {
         result: "rejected",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      if (refundRequest.status === "reversal-review" && orderSnapshot.exists) {
+        const order = orderSnapshot.data();
+        const paidOrders = [
+          ...paidOrdersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+          { id: orderSnapshot.id, ...order, status: "paid" },
+        ];
+        rewardsSnapshot.docs.forEach((rewardDoc) => {
+          const reward = rewardDoc.data();
+          tx.set(rewardDoc.ref, {
+            status: reward.previousStatus || "pending",
+            reversalCaseId: admin.firestore.FieldValue.delete(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+        });
+        tx.set(orderRef, { status: "paid", updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        tx.set(caseRef, { status: "rejected", resolvedAt: reviewedAt, resolvedBy: adminEmail, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        if (userSnapshot.exists) {
+          tx.set(userSnapshot.ref, {
+            ...entitlementFromOrders(paidOrders),
+            refundReviewHold: admin.firestore.FieldValue.delete(),
+            refundReviewOrderId: admin.firestore.FieldValue.delete(),
+            refundReviewStartedAt: admin.firestore.FieldValue.delete(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+      }
       createAdminLog(
         tx,
         "拒绝会员退款申请",
