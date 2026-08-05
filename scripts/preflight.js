@@ -412,6 +412,32 @@ check(
   "Cloud functions keep POS, SimplePay, and affiliate integration paths"
 );
 
+const simplePayScript = read("public/simplepay/script.js");
+const simplePayRules = read("firestore.rules");
+const simplePayFunctions = read("functions/simplepay.js");
+const directRefundRequestWrite = /\b(?:addDoc|setDoc|updateDoc|deleteDoc)\s*\([\s\S]{0,240}?["']refundRequests["']/.test(simplePayScript);
+const directRefundRequestDocument = simplePayScript.includes('doc(db, "refundRequests"');
+const refundRulesStart = simplePayRules.indexOf("match /refundRequests/{requestId}");
+const refundRulesEnd = simplePayRules.indexOf("match /settlementRequests/{requestId}", refundRulesStart);
+const refundRules = refundRulesStart >= 0 && refundRulesEnd > refundRulesStart
+  ? simplePayRules.slice(refundRulesStart, refundRulesEnd)
+  : "";
+const reviewRefundStart = simplePayFunctions.indexOf("exports.reviewMerchantRefund = onCall");
+const reviewRefundEnd = simplePayFunctions.indexOf("exports.submitMerchantSettlement = onCall", reviewRefundStart);
+const reviewMerchantRefund = reviewRefundStart >= 0 && reviewRefundEnd > reviewRefundStart
+  ? simplePayFunctions.slice(reviewRefundStart, reviewRefundEnd)
+  : "";
+
+check(
+  !directRefundRequestWrite
+    && !directRefundRequestDocument
+    && refundRules.includes("allow create, update, delete: if false;")
+    && reviewMerchantRefund.includes('db.collection("payAuditLogs").doc()')
+    && reviewMerchantRefund.includes("action: \"reviewMerchantRefund\"")
+    && reviewMerchantRefund.includes("tx.create(auditRef"),
+  "SimplePay refunds are callable-only, rules deny client writes, and reviews write an audit record"
+);
+
 if (failures) {
   console.error(`\n${failures} preflight check(s) failed.`);
   process.exit(1);

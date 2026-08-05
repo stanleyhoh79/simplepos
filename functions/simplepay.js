@@ -965,6 +965,7 @@ exports.reviewMerchantRefund = onCall(async (request) => {
   const reviewer = await requireAdmin(request);
   const requestId = text(request.data && request.data.requestId);
   const approved = Boolean(request.data && request.data.approved);
+  const reviewNote = text(request.data && request.data.reviewNote).slice(0, 500);
   if (!requestId) throw new HttpsError("invalid-argument", "requestId is required.");
 
   const refundRef = db.collection("refundRequests").doc(requestId);
@@ -992,6 +993,7 @@ exports.reviewMerchantRefund = onCall(async (request) => {
     const merchant = merchantSnapshot.data();
     const wallet = walletSnapshot.data();
     const amount = positiveInteger(refund.amount, "refund amount");
+    const myrAmount = Number(refund.myrAmount || 0);
     const status = approved ? "approved" : "rejected";
     const orderStatus = approved ? "refunded" : "approved";
     const reviewedAt = new Date().toISOString();
@@ -1006,6 +1008,7 @@ exports.reviewMerchantRefund = onCall(async (request) => {
       status,
       reviewedBy: reviewer.email,
       reviewedAt,
+      reviewNote,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
     tx.update(orderRef, {
@@ -1050,6 +1053,24 @@ exports.reviewMerchantRefund = onCall(async (request) => {
       detail: `Order: ${order.id}`,
       createdAt: reviewedAt
     }));
+    const auditRef = db.collection("payAuditLogs").doc();
+    tx.create(auditRef, {
+      id: auditRef.id,
+      actor: reviewer.email,
+      adminEmail: reviewer.email,
+      action: "reviewMerchantRefund",
+      requestId,
+      orderId: refund.orderId,
+      merchantId: refund.merchantId,
+      customerId: refund.customerId,
+      approved,
+      amount,
+      myrAmount,
+      reviewNote,
+      result: status,
+      createdAt: reviewedAt,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
     return { id: requestId, status, duplicate: false };
   });
 });

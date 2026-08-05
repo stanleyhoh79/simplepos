@@ -602,6 +602,19 @@ service cloud.firestore {
               "updatedAt"
             ]);
         }
+
+        function payMerchantFinancialStateIsUnchanged() {
+          return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            "totalReceived",
+            "settlementBalance",
+            "refundTotal",
+            "orders",
+            "refunds",
+            "settlements",
+            "transactions",
+            "notifications"
+          ]) == false;
+        }
     
         match /wallets/{userId} {
           allow read: if payIsAdmin() || payIsSelf(userId);
@@ -632,12 +645,15 @@ service cloud.firestore {
               && request.resource.data.settlementBalance == 0
               && request.resource.data.refundTotal == 0
             );
-          allow update: if payIsAdmin()
-            || (
-              payIsSelf(merchantId)
-              && (
-                !paySecureMoneyEnabled()
-                || payMerchantProfileUpdateIsSafe()
+          allow update: if payMerchantFinancialStateIsUnchanged()
+            && (
+              payIsAdmin()
+              || (
+                payIsSelf(merchantId)
+                && (
+                  !paySecureMoneyEnabled()
+                  || payMerchantProfileUpdateIsSafe()
+                )
               )
             );
           allow delete: if payIsAdmin();
@@ -693,11 +709,7 @@ service cloud.firestore {
                 || resource.data.merchantId == request.auth.uid
               )
             );
-          allow create: if paySignedIn()
-            && !paySecureMoneyEnabled()
-            && request.resource.data.merchantId == request.auth.uid;
-          allow update: if payIsAdmin() && !paySecureMoneyEnabled();
-          allow delete: if payIsAdmin();
+          allow create, update, delete: if false;
         }
     
         match /settlementRequests/{requestId} {
