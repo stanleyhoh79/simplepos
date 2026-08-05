@@ -439,6 +439,11 @@ async function loadState() {
 }
 
 async function saveState() {
+  if (firebaseUser && isAdmin()) {
+    syncMessage = "该后台操作正在迁移，暂不可用。";
+    toast(syncMessage);
+    return false;
+  }
   if (firebaseUser) {
     normalizePendingOrderIdsForOwner(firebaseUser.uid);
   }
@@ -456,24 +461,7 @@ async function saveState() {
   }
   try {
     const cloudState = splitStateForCloud(state);
-    if (isAdmin()) {
-      await setDoc(systemRef, {
-        plans: cloudState.plans,
-        testDataClearedAt: cloudState.testDataClearedAt || "",
-        updatedAt: serverTimestamp(),
-      });
-      await Promise.all([
-        syncAdminCollection(usersRef, cloudState.users),
-        syncAdminCollection(ordersRef, cloudState.orders),
-        syncAdminCollection(rewardsRef, cloudState.rewards),
-        syncAdminCollection(withdrawsRef, cloudState.withdraws),
-        syncAdminCollection(pointLogsRef, cloudState.pointLogs),
-        syncAdminCollection(repeatCreditLogsRef, cloudState.repeatCreditLogs),
-        syncAdminCollection(invitesRef, cloudState.invites),
-        syncAdminCollection(referralsRef, cloudState.referrals),
-        syncAdminCollection(adminLogsRef, cloudState.adminLogs || []),
-      ]);
-    } else {
+    if (!isAdmin()) {
       const user = cloudState.users.find((item) => item.id === firebaseUser.uid);
       if (!user) throw new Error("current-user-document-not-found");
       const userRef = doc(db, USER_COLLECTION, firebaseUser.uid);
@@ -3593,6 +3581,17 @@ function renderAdminOrders() {
   document.querySelector("#adminOrderTable").innerHTML = sanitizeHtml(rows || `<tr><td colspan="10">没有符合条件的订单</td></tr>`);
 }
 
+async function callSetAffiliateUserFrozenState(userId, frozen, reason = "") {
+  const { getFunctions, httpsCallable } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js");
+  const functions = getFunctions(app, "asia-southeast1");
+  const setFrozenState = httpsCallable(functions, "setAffiliateUserFrozenState");
+  const idempotencyKey = typeof crypto?.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `freeze-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const result = await setFrozenState({ userId, frozen, reason, idempotencyKey });
+  return result.data;
+}
+
 function ensureAffiliateRefundReviewPanel() {
   const existing = document.querySelector("#affiliateRefundReviewPanel");
   if (existing) return existing;
@@ -5909,11 +5908,14 @@ document.body.addEventListener("click", async (event) => {
   if (freezeUser) {
     if (!requireAdmin()) return;
     const user = findUser(freezeUser.dataset.freezeUser);
-    user.frozen = !user.frozen;
-    addAdminLog(user.frozen ? "冻结用户" : "解冻用户", user.name, user.account);
-    await saveState();
+    if (!user) return toast("找不到用户");
+    const frozen = !user.frozen;
+    const reason = window.prompt(`${frozen ? "冻结" : "解冻"}原因（可留空）`, "");
+    if (reason === null) return;
+    await callSetAffiliateUserFrozenState(user.id, frozen, reason.trim());
+    state = await loadState();
     renderAll();
-    toast(user.frozen ? "用户已冻结" : "用户已解冻");
+    toast(frozen ? "用户已冻结" : "用户已解冻");
     return;
   }
 

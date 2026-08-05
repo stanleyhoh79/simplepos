@@ -216,6 +216,7 @@ let merchantLoading = false;
 let currentMemberProfile = null;
 let merchantRefundIntentsCache = [];
 let merchantRefundIntentsMerchantId = "";
+let merchantPaymentSession = null;
 let userTransactions = [];
 let adminUsersCache = [];
 let merchantsCache = [];
@@ -1022,6 +1023,7 @@ function renderAdminUsers(users = []) {
           <td>${statusTag(user.status)}</td>
           <td>
             <button class="text-action admin-user-action" data-action="view" data-user-id="${user.id}">查看</button>
+            <button class="text-action admin-user-action" data-action="preview-affiliate-wallet" data-user-id="${user.id}">预览钱包与联盟积分差异</button>
             <button class="text-action admin-user-action" data-action="${user.status === "frozen" ? "unfreeze" : "freeze"}" data-user-id="${user.id}">
               ${user.status === "frozen" ? "解冻" : "冻结"}
             </button>
@@ -1910,110 +1912,30 @@ function renderMerchantDashboard(data = {}) {
   renderList("#merchant-notifications-list", notifications, "暂无支付通知", (item) => `<li><span>${item.text}</span><strong>${item.time || "刚刚"}</strong></li>`);
 }
 
-async function payMerchant(merchantId, merchantName, amount, coupon = null) {
-  const payerRef = walletRef();
-  const merchantDocRef = doc(db, "merchants", merchantId);
-  const orderId = `M${Date.now()}`;
+function createClientRequestId() {
+  return typeof crypto?.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `merchant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function merchantPaymentRequestId(merchantId, amount, paymentCode = "") {
+  const signature = `${merchantId}:${Math.round(Number(amount || 0))}:${paymentCode}`;
+  if (!merchantPaymentSession || merchantPaymentSession.signature !== signature) {
+    merchantPaymentSession = { signature, clientRequestId: createClientRequestId() };
+  }
+  return merchantPaymentSession.clientRequestId;
+}
+
+async function payMerchant(merchantId, merchantName, amount, coupon = null, clientRequestId = "") {
   const discount = Math.min(Number(coupon?.discount || 0), amount);
   const payableAmount = Math.max(0, amount - discount);
-  const couponText = coupon ? `，优惠 ${formatMoney(discount)}` : "";
-  const payerTx = transactionItem("商家付款", merchantName, `- ${formatMoney(payableAmount)}${couponText}`);
-
-  if (usesSecureMoneyFunctions()) {
-    return callMoneyFunction("createMerchantPayment", {
-      merchantId,
-      merchantName,
-      amount: Math.round(payableAmount),
-      externalOrderId: orderId,
-      sourceSystem: "simplepay"
-    });
-  }
-
-  await runTransaction(db, async (transaction) => {
-    const payerSnap = await transaction.get(payerRef);
-    const merchantSnap = await transaction.get(merchantDocRef);
-    if (!merchantSnap.exists()) throw new Error("商家不存在");
-
-    const payerData = payerSnap.data() || {};
-    const merchantData = merchantSnap.data() || {};
-    if (merchantData.status !== "approved") throw new Error("商家未通过审核，无法收款");
-
-    const payerBalance = Number(payerData.balance || 0);
-    const latestUsedCoupons = Array.isArray(payerData.usedCouponIds) ? payerData.usedCouponIds : [];
-    if (coupon?.id && latestUsedCoupons.includes(coupon.id)) throw new Error("该优惠券已使用");
-    if (payableAmount > payerBalance) throw new Error("钱包余额不足");
-
-    assertDailyLimit(payableAmount, payerData.dailyUsage);
-
-    const order = {
-      id: orderId,
-      customerId: currentUser.uid,
-      customer: currentUser.email,
-      amount: payableAmount,
-      originalAmount: amount,
-      discount,
-      couponId: coupon?.id || "",
-      couponTitle: coupon?.title || "",
-      status: "approved",
-      createdAt: new Date().toISOString(),
-    };
-    const merchantTx = transactionItem("QR收款", currentUser.email, `+ ${formatMoney(payableAmount)}`);
-    const notification = { text: `订单 ${orderId} 支付成功${coupon ? `，优惠 ${formatMoney(discount)}` : ""}`, time: "刚刚", createdAt: new Date().toISOString() };
-
-    transaction.set(
-      payerRef,
-      {
-        balance: payerBalance - payableAmount,
-        dailyUsage: nextDailyUsage(payerData.dailyUsage, payableAmount),
-        usedCouponIds: coupon?.id ? [coupon.id, ...latestUsedCoupons].slice(0, 100) : latestUsedCoupons,
-        transactions: [payerTx, ...(payerData.transactions || [])].slice(0, 30),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-    transaction.set(
-      merchantDocRef,
-      {
-        totalReceived: Number(merchantData.totalReceived || 0) + payableAmount,
-        settlementBalance: Number(merchantData.settlementBalance || 0) + payableAmount,
-        orders: [order, ...(merchantData.orders || [])].slice(0, 50),
-        transactions: [merchantTx, ...(merchantData.transactions || [])].slice(0, 30),
-        notifications: [notification, ...(merchantData.notifications || [])].slice(0, 20),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-  });
-
-  recordLedgerTransactionSafe({
-    id: `payment-user-${orderId}`,
-    account: currentUser?.email || currentUser?.uid,
-    accountId: currentUser?.uid,
-    accountRole: "user",
-    counterparty: merchantName || merchantId,
-    type: "商家付款",
-    amount: payableAmount,
-    amountText: `- ${formatMoney(payableAmount)}${couponText}`,
-    source: "扫码付款",
-    sourceType: "payment",
-    status: "成功",
-    statusClass: "success",
-    detail: `Order: ${orderId} / Merchant: ${merchantId}`,
-  });
-  recordLedgerTransactionSafe({
-    id: `payment-merchant-${orderId}`,
-    account: merchantName || merchantId,
-    accountId: merchantId,
-    accountRole: "merchant",
-    counterparty: currentUser?.email || currentUser?.uid,
-    type: "QR收款",
-    amount: payableAmount,
-    amountText: `+ ${formatMoney(payableAmount)}`,
-    source: "商家收款",
-    sourceType: "payment",
-    status: "成功",
-    statusClass: "success",
-    detail: `Order: ${orderId} / Customer: ${currentUser?.email || "-"}`,
+  return callMoneyFunction("createMerchantPayment", {
+    merchantId,
+    merchantName,
+    amount: Math.round(payableAmount),
+    clientRequestId,
+    externalOrderId: clientRequestId,
+    sourceSystem: "simplepay"
   });
 }
 
@@ -2232,111 +2154,29 @@ async function loadRechargeRequests() {
 
 async function submitRechargeRequest(amount) {
   if (walletStatus === "frozen") throw new Error("账户已被冻结，无法提交充值申请");
+  if (!usesSecureMoneyFunctions()) throw new Error("此功能正在升级，暂不可用。");
   const requestId = `${currentUser.uid}-${Date.now()}`;
-  if (usesSecureMoneyFunctions()) {
-    const result = await callMoneyFunction("submitRechargeRequest", {
-      myrAmount: Number(amount),
-      externalRequestId: requestId
-    });
-    return result.id;
-  }
-
-  const pointsAmount = myrToPoints(amount);
-  await setDoc(doc(db, "rechargeRequests", requestId), {
-    userId: currentUser.uid,
-    email: currentUser.email,
-    displayName: currentUser.displayName || "",
-    amount: pointsAmount,
-    myrAmount: amount,
-    status: "pending",
-    time: "刚刚",
-    createdAt: new Date().toISOString(),
-    updatedAt: serverTimestamp(),
+  const result = await callMoneyFunction("submitRechargeRequest", {
+    myrAmount: Number(amount),
+    externalRequestId: requestId
   });
-  return requestId;
+  return result.id;
 }
 
 async function reviewRechargeRequest(requestId, approved, reviewInfo = {}) {
   const request = rechargeRequestsCache.find((item) => item.id === requestId);
   if (!request) throw new Error("找不到充值申请");
   if (request.status !== "pending") throw new Error("该申请已处理");
+  if (!usesSecureMoneyFunctions()) throw new Error("此功能正在升级，暂不可用。");
 
-  if (usesSecureMoneyFunctions()) {
-    await callMoneyFunction("reviewRechargeRequest", {
-      requestId,
-      approved,
-      paymentReference: reviewInfo.paymentReference || "",
-      reviewNote: reviewInfo.reviewNote || ""
-    });
-    await Promise.all([loadRechargeRequests(), loadAdminUsers(), loadFinanceReport(), loadRiskCenter(), loadAdminOverview()]);
-    loadAdminTransactions().catch(() => {});
-    return;
-  }
-
-  await runTransaction(db, async (transaction) => {
-    const requestRef = doc(db, "rechargeRequests", requestId);
-    const userRef = doc(db, "wallets", request.userId);
-    const requestSnap = await transaction.get(requestRef);
-    const userSnap = await transaction.get(userRef);
-    if (!requestSnap.exists()) throw new Error("充值申请不存在");
-    if (!userSnap.exists()) throw new Error("用户钱包不存在");
-
-    const latestRequest = requestSnap.exists() ? requestSnap.data() : request;
-    if (latestRequest.status !== "pending") throw new Error("该申请已处理");
-
-    const userData = userSnap.data() || {};
-    const tx = transactionItem(
-      approved ? "充值" : "充值拒绝",
-      "后台审批",
-      approved ? `+ ${formatMoney(latestRequest.amount)}` : formatMoney(latestRequest.amount)
-    );
-
-    transaction.set(
-      requestRef,
-      {
-        status: approved ? "approved" : "rejected",
-        paymentReference: approved ? reviewInfo.paymentReference || "" : "",
-        reviewNote: reviewInfo.reviewNote || "",
-        reviewedBy: currentUser.email,
-        reviewedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    transaction.set(
-      userRef,
-      {
-        balance: approved ? Number(userData.balance || 0) + Number(latestRequest.amount || 0) : Number(userData.balance || 0),
-        transactions: [tx, ...(userData.transactions || [])].slice(0, 30),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-  });
-
-  recordLedgerTransactionSafe({
-    id: `recharge-${requestId}`,
-    account: request.email || request.userId,
-    accountId: request.userId,
-    accountRole: "user",
-    counterparty: currentUser?.email || "admin",
-    type: approved ? "充值审批通过" : "充值审批拒绝",
-    amount: Number(request.amount || 0),
-    amountText: approved ? `+ ${formatMoney(request.amount || 0)}` : formatMoney(request.amount || 0),
-    source: "充值审批",
-    sourceType: "recharge",
-    status: approved ? "已通过" : "已拒绝",
-    statusClass: approved ? "success" : "danger",
-    detail: `${request.email || request.userId} / ${reviewInfo.paymentReference || reviewInfo.reviewNote || "-"}`,
+  await callMoneyFunction("reviewRechargeRequest", {
+    requestId,
+    approved,
+    paymentReference: reviewInfo.paymentReference || "",
+    reviewNote: reviewInfo.reviewNote || ""
   });
   await Promise.all([loadRechargeRequests(), loadAdminUsers(), loadFinanceReport(), loadRiskCenter(), loadAdminOverview()]);
   loadAdminTransactions().catch(() => {});
-  logAuditSafe({
-    module: "充值/提现管理",
-    action: approved ? "通过充值申请" : "拒绝充值申请",
-    target: requestId,
-    detail: `${request.email || request.userId} / ${formatMoney(request.amount || 0)} / ${reviewInfo.paymentReference || reviewInfo.reviewNote || "-"}`,
-  });
 }
 
 function renderWithdrawalRequests(requests = []) {
@@ -2384,138 +2224,30 @@ async function submitWithdrawalRequest(amount, bankAccount) {
   if (!USER_WITHDRAWAL_ENABLED) throw new Error("用户提现功能已停用，积分只能用于消费");
   if (walletStatus === "frozen") throw new Error("账户已被冻结，无法提交提现申请");
   if (amount > walletBalance) throw new Error("钱包余额不足，无法提交提现申请");
-
+  if (!usesSecureMoneyFunctions()) throw new Error("此功能正在升级，暂不可用。");
   const requestId = `${currentUser.uid}-${Date.now()}`;
-  if (usesSecureMoneyFunctions()) {
-    const result = await callMoneyFunction("submitWithdrawalRequest", {
-      amount: Math.round(amount),
-      bankAccount,
-      externalRequestId: requestId
-    });
-    return result.id;
-  }
-
-  const requestRef = doc(db, "withdrawRequests", requestId);
-  const userWalletRef = walletRef();
-  const requestData = {
-    userId: currentUser.uid,
-    email: currentUser.email,
-    displayName: currentUser.displayName || "",
-    amount,
-    myrAmount: pointsToMyr(amount),
+  const result = await callMoneyFunction("submitWithdrawalRequest", {
+    amount: Math.round(amount),
     bankAccount,
-    status: "pending",
-    time: "刚刚",
-    createdAt: new Date().toISOString(),
-    updatedAt: serverTimestamp(),
-  };
-
-  await runTransaction(db, async (transaction) => {
-    const walletSnap = await transaction.get(userWalletRef);
-    const walletData = walletSnap.data() || {};
-    const latestStatus = walletData.status || walletStatus;
-    const latestBalance = Number(walletData.balance || 0);
-
-    if (latestStatus === "frozen") throw new Error("账户已被冻结，无法提交提现申请");
-    if (amount > latestBalance) throw new Error("钱包余额不足，无法提交提现申请");
-    assertDailyLimit(amount, walletData.dailyUsage);
-
-    transaction.set(requestRef, requestData);
-    transaction.set(
-      userWalletRef,
-      {
-        dailyUsage: nextDailyUsage(walletData.dailyUsage, amount),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    externalRequestId: requestId
   });
-  return requestId;
+  return result.id;
 }
 
 async function reviewWithdrawalRequest(requestId, approved, reviewInfo = {}) {
   const request = withdrawalRequestsCache.find((item) => item.id === requestId);
   if (!request) throw new Error("找不到提现申请");
   if (request.status !== "pending") throw new Error("该申请已处理");
+  if (!usesSecureMoneyFunctions()) throw new Error("此功能正在升级，暂不可用。");
 
-  if (usesSecureMoneyFunctions()) {
-    await callMoneyFunction("reviewWithdrawalRequest", {
-      requestId,
-      approved,
-      payoutReference: reviewInfo.payoutReference || "",
-      reviewNote: reviewInfo.reviewNote || ""
-    });
-    await Promise.all([loadWithdrawalRequests(), loadAdminUsers(), loadFinanceReport(), loadRiskCenter(), loadAdminOverview()]);
-    loadAdminTransactions().catch(() => {});
-    return;
-  }
-
-  await runTransaction(db, async (transaction) => {
-    const requestRef = doc(db, "withdrawRequests", requestId);
-    const userRef = doc(db, "wallets", request.userId);
-    const requestSnap = await transaction.get(requestRef);
-    const userSnap = await transaction.get(userRef);
-    if (!requestSnap.exists()) throw new Error("提现申请不存在");
-    if (!userSnap.exists()) throw new Error("用户钱包不存在");
-
-    const latestRequest = requestSnap.exists() ? requestSnap.data() : request;
-    if (latestRequest.status !== "pending") throw new Error("该申请已处理");
-    const userData = userSnap.data() || {};
-    const balance = Number(userData.balance || 0);
-    if (approved && latestRequest.amount > balance) throw new Error("用户余额不足，不能提现");
-
-    const tx = transactionItem(
-      approved ? "提现" : "提现拒绝",
-      latestRequest.bankAccount || "银行卡",
-      approved ? `- ${formatMoney(latestRequest.amount)}` : formatMoney(latestRequest.amount)
-    );
-
-    transaction.set(
-      requestRef,
-      {
-        status: approved ? "approved" : "rejected",
-        payoutReference: approved ? reviewInfo.payoutReference || "" : "",
-        reviewNote: reviewInfo.reviewNote || "",
-        reviewedBy: currentUser.email,
-        reviewedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    transaction.set(
-      userRef,
-      {
-        balance: approved ? balance - Number(latestRequest.amount || 0) : balance,
-        transactions: [tx, ...(userData.transactions || [])].slice(0, 30),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-  });
-
-  recordLedgerTransactionSafe({
-    id: `withdrawal-${requestId}`,
-    account: request.email || request.userId,
-    accountId: request.userId,
-    accountRole: "user",
-    counterparty: request.bankAccount || "",
-    type: approved ? "提现审批通过" : "提现审批拒绝",
-    amount: Number(request.amount || 0),
-    amountText: approved ? `- ${formatMoney(request.amount || 0)}` : formatMoney(request.amount || 0),
-    source: "提现审批",
-    sourceType: "withdrawal",
-    status: approved ? "已通过" : "已拒绝",
-    statusClass: approved ? "success" : "danger",
-    detail: `${request.bankAccount || "-"} / ${reviewInfo.payoutReference || reviewInfo.reviewNote || "-"}`,
+  await callMoneyFunction("reviewWithdrawalRequest", {
+    requestId,
+    approved,
+    payoutReference: reviewInfo.payoutReference || "",
+    reviewNote: reviewInfo.reviewNote || ""
   });
   await Promise.all([loadWithdrawalRequests(), loadAdminUsers(), loadFinanceReport(), loadRiskCenter(), loadAdminOverview()]);
   loadAdminTransactions().catch(() => {});
-  logAuditSafe({
-    module: "充值/提现管理",
-    action: approved ? "通过提现申请" : "拒绝提现申请",
-    target: requestId,
-    detail: `${request.email || request.userId} / ${formatMoney(request.amount || 0)} / ${reviewInfo.payoutReference || reviewInfo.reviewNote || "-"}`,
-  });
 }
 
 function renderRefundRequests(requests = []) {
@@ -3617,6 +3349,8 @@ async function updateWalletBalance(change, txItem) {
 }
 
 async function transferToUser(recipientUserId, recipientName, amount) {
+  throw new Error("此功能正在升级，暂不可用。");
+  /* Legacy direct wallet write retained below only as unreachable reference during the staged migration. */
   const payerRef = walletRef();
   const recipientRef = doc(db, "wallets", recipientUserId);
   const payerTx = transactionItem("扫码转账", recipientName || "个人收款码", `- ${formatMoney(amount)}`);
@@ -4443,33 +4177,15 @@ async function confirmScanPayment() {
     } else {
       const merchantId = manualPayment?.merchantId || codeInput?.dataset.merchantId;
       if (merchantId) {
-        await payMerchant(merchantId, merchant, amount, selectedCoupon);
+        const clientRequestId = merchantPaymentRequestId(merchantId, payableAmount, codeInput?.value || "");
+        await payMerchant(merchantId, merchant, amount, selectedCoupon, clientRequestId);
       } else {
-        const txText = selectedCoupon ? `- ${formatMoney(payableAmount)}，优惠 ${formatMoney(couponDiscount)}` : `- ${formatMoney(amount)}`;
-        const transactions = [transactionItem("扫码付款", merchant, txText), ...userTransactions].slice(0, 30);
-        const nextUsedCoupons = selectedCoupon ? [selectedCoupon.id, ...usedCouponIds].slice(0, 100) : usedCouponIds;
-        const nextBalance = Math.max(0, walletBalance - payableAmount);
-        const updatedDailyUsage = nextDailyUsage(dailyUsage, payableAmount);
-        setWalletBalance(nextBalance);
-        usedCouponIds = nextUsedCoupons;
-        dailyUsage = updatedDailyUsage;
-        renderUserTransactions(transactions);
-        renderUserMarketing(marketingItemsCache);
-        await setDoc(
-          walletRef(),
-          {
-            balance: nextBalance,
-            dailyUsage: updatedDailyUsage,
-            usedCouponIds: nextUsedCoupons,
-            transactions,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
+        throw new Error("未识别商家收款码，无法安全扣除钱包余额。");
       }
       showToast(selectedCoupon ? `付款成功，原价 ${formatMoney(amount)}，优惠 ${formatMoney(couponDiscount)}，实付 ${formatMoney(payableAmount)}` : `付款成功，余额已扣除 ${formatMoney(amount)}`);
     }
     closeDialog();
+    merchantPaymentSession = null;
   } catch (error) {
     if (error.code === "permission-denied") {
       showToast("付款失败：Firestore 规则不允许写入收款方钱包");
@@ -5675,6 +5391,17 @@ function handleAdminButton(button) {
     const userId = button.dataset.userId;
     const action = button.dataset.action;
     const user = adminUsersCache.find((item) => item.id === userId);
+    if (action === "preview-affiliate-wallet") {
+      callMoneyFunction("previewAffiliateWalletReconciliation", { userId })
+        .then((result) => openDialog(
+          "钱包与联盟积分差异预览",
+          `<div class="detail-list"><p><strong>钱包真实余额：</strong>${formatMoney(result.walletBalance)}</p><p><strong>联盟积分镜像：</strong>${result.affiliatePoints === null ? "未关联" : formatMoney(result.affiliatePoints)}</p><p><strong>差异：</strong>${result.difference === null ? "未关联" : formatMoney(result.difference)}</p><p><strong>建议镜像值：</strong>${formatMoney(result.recommendedMirrorValue)}</p><p><strong>需要修正：</strong>${result.needsCorrection ? "是（仅预览，未修改）" : "否"}</p></div>`,
+          "关闭",
+          closeDialog
+        ))
+        .catch((error) => showToast(error.message || "无法读取对账预览"));
+      return;
+    }
     if (action === "view") {
       openDialog(
         "用户详情",
