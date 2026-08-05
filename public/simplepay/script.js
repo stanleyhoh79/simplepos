@@ -3706,6 +3706,54 @@ function closeDialog() {
   if (overlay) overlay.classList.add("hidden");
 }
 
+function openAffiliateWalletReconciliationPreview(userId, result) {
+  const canApply = Number(result.difference || 0) !== 0 && result.affiliatePoints !== null;
+  const body = `<div class="detail-list"><p><strong>钱包真实余额：</strong>${formatMoney(result.walletBalance)}</p><p><strong>联盟积分镜像：</strong>${result.affiliatePoints === null ? "未关联" : formatMoney(result.affiliatePoints)}</p><p><strong>差异：</strong>${result.difference === null ? "未关联" : formatMoney(result.difference)}</p><p><strong>建议镜像值：</strong>${formatMoney(result.recommendedMirrorValue)}</p><p><strong>需要修正：</strong>${result.needsCorrection ? "是（仅预览，未修改）" : "否"}</p></div>`;
+  openDialog(
+    "钱包与联盟积分差异预览",
+    body,
+    canApply ? "将联盟积分镜像修正为钱包余额" : "关闭",
+    canApply ? () => openAffiliateWalletReconciliationConfirmation(userId, result) : closeDialog
+  );
+}
+
+function openAffiliateWalletReconciliationConfirmation(userId, preview) {
+  const clientRequestId = typeof crypto?.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `reconciliation-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const idempotencyKey = `wallet-reconciliation:${userId}:${clientRequestId}`;
+  openDialog(
+    "确认修正联盟积分镜像",
+    `<div class="detail-list"><p><strong>用户：</strong>${userId}</p><p><strong>钱包真实余额：</strong>${formatMoney(preview.walletBalance)}</p><p><strong>当前联盟积分：</strong>${formatMoney(preview.affiliatePoints)}</p><p><strong>调整差额：</strong>${formatMoney(preview.difference)}</p><p><strong>调整后联盟积分：</strong>${formatMoney(preview.walletBalance)}</p><p class="dialog-note">不会改变钱包余额，也不会修改任何订单或交易。</p></div><label class="field-label">调整原因（至少 5 个字符）<input class="dialog-input" id="wallet-reconciliation-reason" autocomplete="off" /></label><label class="field-label">确认文字<input class="dialog-input" id="wallet-reconciliation-confirmation" autocomplete="off" /></label><code>APPLY WALLET MIRROR RECONCILIATION</code>`,
+    "确认修正",
+    async () => {
+      const reason = document.querySelector("#wallet-reconciliation-reason")?.value.trim() || "";
+      const confirmationText = document.querySelector("#wallet-reconciliation-confirmation")?.value.trim() || "";
+      if (reason.length < 5) throw new Error("请填写至少 5 个字符的调整原因。");
+      if (confirmationText !== "APPLY WALLET MIRROR RECONCILIATION") {
+        throw new Error("确认文字必须完全匹配。");
+      }
+      const result = await callMoneyFunction("applyAffiliateWalletReconciliation", {
+        userId,
+        expectedWalletBalance: preview.walletBalance,
+        expectedAffiliatePoints: preview.affiliatePoints,
+        reason,
+        confirmationText,
+        idempotencyKey,
+      });
+      if (result.status === "already-reconciled") {
+        showToast("当前镜像已一致，无需修正。");
+      } else if (result.status === "reconciled") {
+        showToast(`联盟积分镜像已从 ${formatMoney(result.affiliatePointsBefore)} 修正为 ${formatMoney(result.affiliatePointsAfter)}。`);
+      } else {
+        throw new Error("对账迁移未返回成功状态。");
+      }
+      const refreshed = await callMoneyFunction("previewAffiliateWalletReconciliation", { userId });
+      openAffiliateWalletReconciliationPreview(userId, refreshed);
+    }
+  );
+}
+
 let scannerLayoutFrame = 0;
 
 function updateScannerDialogLayout() {
@@ -5393,12 +5441,7 @@ function handleAdminButton(button) {
     const user = adminUsersCache.find((item) => item.id === userId);
     if (action === "preview-affiliate-wallet") {
       callMoneyFunction("previewAffiliateWalletReconciliation", { userId })
-        .then((result) => openDialog(
-          "钱包与联盟积分差异预览",
-          `<div class="detail-list"><p><strong>钱包真实余额：</strong>${formatMoney(result.walletBalance)}</p><p><strong>联盟积分镜像：</strong>${result.affiliatePoints === null ? "未关联" : formatMoney(result.affiliatePoints)}</p><p><strong>差异：</strong>${result.difference === null ? "未关联" : formatMoney(result.difference)}</p><p><strong>建议镜像值：</strong>${formatMoney(result.recommendedMirrorValue)}</p><p><strong>需要修正：</strong>${result.needsCorrection ? "是（仅预览，未修改）" : "否"}</p></div>`,
-          "关闭",
-          closeDialog
-        ))
+        .then((result) => openAffiliateWalletReconciliationPreview(userId, result))
         .catch((error) => showToast(error.message || "无法读取对账预览"));
       return;
     }
