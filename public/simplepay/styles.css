@@ -288,6 +288,7 @@ th { color: var(--muted); font-size: 12px; font-weight: 700; }
   box-shadow: 0 28px 80px rgba(16, 37, 30, .24); overflow: hidden;
 }
 .dialog.scanner-dialog {
+  --scanner-action-space: 88px;
   width: min(94vw, 720px);
   height: auto;
   max-height: 92dvh;
@@ -309,7 +310,7 @@ th { color: var(--muted); font-size: 12px; font-weight: 700; }
 .dialog-body { display: grid; gap: 12px; padding: 20px; }
 .scanner-dialog .dialog-body {
   min-width: 0;
-  padding-bottom: 104px;
+  padding-bottom: calc(var(--scanner-action-space) + 24px);
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
@@ -330,6 +331,36 @@ th { color: var(--muted); font-size: 12px; font-weight: 700; }
   box-shadow: 0 -8px 20px rgba(16, 37, 30, .12);
 }
 .scanner-dialog .dialog-actions button { min-height: 48px; flex: 1 1 0; }
+.payment-amount-summary {
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--primary-dark);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.payment-amount-field {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--line));
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--primary-dark);
+  font-size: 15px;
+  font-weight: 800;
+}
+.payment-amount-field .dialog-input {
+  min-height: 48px;
+  font-size: 18px;
+  font-weight: 800;
+  background: #fff;
+}
 .dialog-input {
   width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 8px;
   padding: 9px 12px; color: var(--text); font: inherit;
@@ -378,7 +409,7 @@ th { color: var(--muted); font-size: 12px; font-weight: 700; }
   .scanner-box { aspect-ratio: 4 / 3; }
 }
 @media (orientation: landscape) and (min-width: 768px) {
-  .scanner-dialog .scanner-box { max-height: 170px; aspect-ratio: 16 / 6; }
+  .scanner-dialog .scanner-box { max-height: 120px; aspect-ratio: 16 / 6; }
 }
 @media (orientation: portrait) and (max-width: 767px) {
   .scanner-dialog .scanner-box { max-height: 260px; }
@@ -386,6 +417,7 @@ th { color: var(--muted); font-size: 12px; font-weight: 700; }
 @media (max-width: 540px) {
   .action-overlay { padding: 12px; }
   .scanner-actions { grid-template-columns: 1fr; }
+  .scanner-dialog { --scanner-action-space: 136px; }
   .scanner-dialog .dialog-actions { width: min(94vw, 720px); flex-direction: column; }
 }
 .toast {

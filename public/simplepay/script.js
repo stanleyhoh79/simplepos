@@ -4142,7 +4142,7 @@ function updateScannerDialogLayout() {
   const phonePortrait = window.innerWidth <= 767 && window.matchMedia("(orientation: portrait)").matches;
   const aspect = phonePortrait ? "1 / 1" : tabletLandscape ? "16 / 6" : narrowLandscape ? "4 / 3" : "16 / 9";
   scannerBox.style.aspectRatio = aspect;
-  scannerBox.style.maxHeight = tabletLandscape ? "170px" : phonePortrait ? "260px" : "";
+  scannerBox.style.maxHeight = tabletLandscape ? "120px" : phonePortrait ? "260px" : "";
 }
 
 function scheduleScannerDialogLayout() {
@@ -4239,6 +4239,18 @@ function promptAdminWhatsappCall(context = {}) {
   );
 }
 
+function updatePaymentAmountSummary(amountPoints, amountMyr = null) {
+  const summary = document.querySelector("#pay-amount-summary");
+  if (!summary) return;
+  const points = Math.round(Number(amountPoints || 0));
+  if (!points) {
+    summary.textContent = "应付：扫码后自动显示";
+    return;
+  }
+  const myr = amountMyr === null ? pointsToMyr(points) : Number(amountMyr || 0);
+  summary.textContent = `应付：${formatMoney(points)}（${formatRM(myr)}）`;
+}
+
 function fillPaymentForm(payment) {
   const merchantInput = document.querySelector("#pay-merchant");
   const amountInput = document.querySelector("#pay-amount");
@@ -4247,6 +4259,7 @@ function fillPaymentForm(payment) {
 
   if (merchantInput) merchantInput.value = payment.merchant || "";
   if (amountInput) amountInput.value = payment.amount ? String(Math.round(payment.amount)) : "";
+  updatePaymentAmountSummary(payment.amount);
   if (codeInput) codeInput.value = payment.code || "";
   if (codeInput) codeInput.dataset.kind = payment.kind || "";
   if (codeInput) codeInput.dataset.recipientUserId = payment.recipientUserId || "";
@@ -4297,6 +4310,7 @@ async function loadPosPaymentIntent(intentId) {
     amountInput.value = String(intent.amountPoints || "");
     amountInput.readOnly = true;
   }
+  updatePaymentAmountSummary(intent.amountPoints, intent.amountMyr);
   if (result) {
     result.textContent = `POS 订单 ${intent.posOrderId}，应付 ${formatMoney(intent.amountPoints)}（RM ${Number(intent.amountMyr || 0).toFixed(2)}）`;
   }
@@ -4831,13 +4845,15 @@ function handleUserButton(button) {
         <label class="text-action image-file-label" for="qr-image-input">从相册选择二维码</label>
         <input class="image-file-input" id="qr-image-input" type="file" accept="image/*" />
       </div>
+      <div class="payment-amount-summary" id="pay-amount-summary" aria-live="polite">应付：扫码后自动显示</div>
       <p class="dialog-note" id="scan-result">请扫描商家付款码，或从手机相册选择二维码图片。个人扫码转账已停用。</p>
+       <label class="payment-amount-field">付款积分
+         <input class="dialog-input" id="pay-amount" value="" inputmode="numeric" placeholder="请输入积分" />
+       </label>
        <label class="field-label">付款码内容</label>
        <input class="dialog-input" id="pay-code" placeholder="粘贴或输入商家付款码" />
        <label class="field-label">对象</label>
        <input class="dialog-input" id="pay-merchant" value="" placeholder="扫码后自动填入" />
-       <label class="field-label">付款积分</label>
-       <input class="dialog-input" id="pay-amount" value="" placeholder="请输入积分" />
        ${couponSelectMarkup()}`,
       "确认付款",
       confirmScanPayment
