@@ -217,6 +217,10 @@ let currentMemberProfile = null;
 let merchantRefundIntentsCache = [];
 let merchantRefundIntentsMerchantId = "";
 let merchantPaymentSession = null;
+let reconciliationBatchState = null;
+let reconciliationScanInFlight = false;
+let reconciliationExecutionInFlight = false;
+let reconciliationResumeChecked = false;
 let userTransactions = [];
 let adminUsersCache = [];
 let merchantsCache = [];
@@ -1007,6 +1011,16 @@ function kycStatusLabel(status) {
 function renderAdminUsers(users = []) {
   const body = document.querySelector("#admin-users-body");
   if (!body) return;
+  renderHistoricalReconciliationPanel();
+  if (!reconciliationResumeChecked) {
+    reconciliationResumeChecked = true;
+    callMoneyFunction("getActiveAffiliateWalletReconciliationBatch", {}).then(async (active) => {
+      if (!active?.active) return;
+      const preview = await callMoneyFunction("previewAffiliateWalletReconciliationBatch", { scanId: active.scanId });
+      reconciliationBatchState = { scanId: active.scanId, scanStatus: preview.status, batchKey: active.batchKey, batchCursor: active.cursor, batchReason: active.reason, preview, progress: "发现未完成批次，可继续使用原批次密钥。" };
+      renderHistoricalReconciliationPanel();
+    }).catch(() => {});
+  }
   if (!users.length) {
     body.innerHTML = '<tr><td colspan="6">暂无用户钱包数据</td></tr>';
     return;
@@ -1032,6 +1046,115 @@ function renderAdminUsers(users = []) {
       `
     )
     .join(""));
+}
+
+function reconciliationRequestId(prefix) {
+  const value = typeof crypto?.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${value}`;
+}
+
+function renderHistoricalReconciliationPanel() {
+  const host = document.querySelector("#admin-user-management");
+  if (!host) return;
+  let panel = host.querySelector("#wallet-affiliate-reconciliation-panel");
+  if (!panel) {
+    panel = document.createElement("section");
+    panel.id = "wallet-affiliate-reconciliation-panel";
+    panel.className = "admin-panel reconciliation-panel";
+    host.appendChild(panel);
+  }
+  const state = reconciliationBatchState;
+  const preview = state?.preview;
+  const busy = reconciliationScanInFlight || reconciliationExecutionInFlight;
+  const canResumeBatch = Boolean(state?.batchKey) && ["executing", "partial"].includes(state?.scanStatus);
+  panel.innerHTML = sanitizeHtml(`<h3>历史余额对账</h3><p class="muted">只更新联盟积分镜像，不改变钱包余额；风险记录会保留为人工复核。</p><div class="detail-list"><p>扫描状态：<strong>${state?.scanStatus || "未开始"}</strong></p><p>已扫描：<strong>${Number(preview?.scannedCount || state?.scannedCount || 0)}</strong></p><p>已一致：<strong>${Number(preview?.consistentCount || 0)}</strong></p><p>可自动修正：<strong>${Number((preview?.totalAutoReconcilableCount ?? preview?.autoReconcilableCount) || 0)}</strong></p><p>人工复核：<strong>${Number((preview?.totalManualReviewCount ?? preview?.manualReviewCount) || 0)}</strong></p><p>已修正：<strong>${Number(preview?.appliedCount || 0)}</strong></p><p>过期/失败：<strong>${Number(preview?.staleCount || 0)} / ${Number(preview?.failedCount || 0)}</strong></p><p>自动修正总差额：<strong>${formatMoney(preview?.totalDifference || 0)}</strong></p></div><div class="actions"><button class="text-action" id="start-wallet-affiliate-scan" type="button" ${busy ? "disabled" : ""}>扫描历史余额差异</button><button class="text-action" id="preview-wallet-affiliate-batch" type="button" ${!state?.scanId || busy ? "disabled" : ""}>预览已验证迁移</button><button class="text-action" id="apply-wallet-affiliate-batch" type="button" ${busy || (!canResumeBatch && (state?.scanStatus !== "ready" || !preview?.canExecute)) ? "disabled" : ""}>${canResumeBatch ? "继续未完成批次" : "执行已验证迁移"}</button></div><p class="muted">${state?.progress || "不会在页面加载时自动扫描或执行。"}</p>${preview?.automatic?.length ? `<details><summary>可自动修正列表（${preview.automatic.length}/${preview.totalAutoReconcilableCount || preview.automatic.length}）</summary><ul>${preview.automatic.map((item) => `<li>${item.userId} / 差额 ${formatMoney(item.difference)} / ${item.classification}</li>`).join("")}</ul>${preview.autoNextCursor ? `<button class="text-action" id="more-wallet-auto-preview" type="button" ${busy ? "disabled" : ""}>查看更多自动可修正</button>` : ""}</details>` : ""}${preview?.manualReview?.length ? `<details><summary>人工复核列表（${preview.manualReview.length}/${preview.totalManualReviewCount || preview.manualReview.length}）</summary><ul>${preview.manualReview.map((item) => `<li>${item.userId} / ${(item.riskReasons || []).join(", ") || "需人工复核"}</li>`).join("")}</ul>${preview.manualNextCursor ? `<button class="text-action" id="more-wallet-manual-preview" type="button" ${busy ? "disabled" : ""}>查看更多人工复核</button>` : ""}</details>` : ""}`);
+}
+
+async function scanHistoricalWalletReconciliation() {
+  if (reconciliationScanInFlight || reconciliationExecutionInFlight) return;
+  reconciliationScanInFlight = true;
+  const resume = reconciliationBatchState?.scanId && ["scanning", "failed"].includes(reconciliationBatchState.scanStatus);
+  const scanId = resume ? reconciliationBatchState.scanId : reconciliationRequestId("scan");
+  let cursor = resume ? (reconciliationBatchState.scanCursor || "") : "";
+  reconciliationBatchState = { ...reconciliationBatchState, scanId, scanCursor: cursor, scanStatus: "scanning", scannedCount: resume ? Number(reconciliationBatchState.scannedCount || 0) : 0, progress: "正在分页扫描历史差异…" };
+  renderHistoricalReconciliationPanel();
+  try {
+    do {
+      const page = await callMoneyFunction("scanAffiliateWalletReconciliation", { scanId, cursor, limit: 25 });
+      cursor = page.nextCursor || "";
+      reconciliationBatchState = { ...reconciliationBatchState, scanCursor: cursor, scanStatus: page.status, scannedCount: Number(reconciliationBatchState.scannedCount || 0) + (page.duplicate ? 0 : Number(page.scannedCount || 0)), progress: page.completed ? "扫描完成，正在准备预览。" : "正在继续扫描下一批…" };
+      renderHistoricalReconciliationPanel();
+    } while (cursor);
+    const preview = await callMoneyFunction("previewAffiliateWalletReconciliationBatch", { scanId });
+    reconciliationBatchState = { ...reconciliationBatchState, scanStatus: preview.status, preview, progress: "扫描完成：请先核对摘要，再执行已验证迁移。" };
+  } finally {
+    reconciliationScanInFlight = false;
+    renderHistoricalReconciliationPanel();
+  }
+}
+
+async function loadMoreHistoricalReconciliationPreview(kind) {
+  const state = reconciliationBatchState;
+  const preview = state?.preview;
+  const cursor = kind === "automatic" ? preview?.autoNextCursor : preview?.manualNextCursor;
+  if (!state?.scanId || !cursor || reconciliationScanInFlight || reconciliationExecutionInFlight) return;
+  reconciliationScanInFlight = true;
+  try {
+    const next = await callMoneyFunction("previewAffiliateWalletReconciliationBatch", {
+      scanId: state.scanId,
+      autoCursor: kind === "automatic" ? cursor : "",
+      manualCursor: kind === "manual" ? cursor : "",
+    });
+    const listKey = kind === "automatic" ? "automatic" : "manualReview";
+    const cursorKey = kind === "automatic" ? "autoNextCursor" : "manualNextCursor";
+    reconciliationBatchState = { ...reconciliationBatchState, scanStatus: next.status, preview: { ...next, automatic: kind === "automatic" ? [...(preview.automatic || []), ...(next.automatic || [])] : (preview.automatic || []), manualReview: kind === "manual" ? [...(preview.manualReview || []), ...(next.manualReview || [])] : (preview.manualReview || []), [cursorKey]: next[cursorKey] } };
+  } finally {
+    reconciliationScanInFlight = false;
+    renderHistoricalReconciliationPanel();
+  }
+}
+
+function openHistoricalReconciliationBatchConfirmation() {
+  const state = reconciliationBatchState;
+  const preview = state?.preview;
+  const resuming = Boolean(state?.batchKey) && ["executing", "partial"].includes(state?.scanStatus);
+  if (!state?.scanId || (!preview?.canExecute && !resuming)) throw new Error("当前没有可执行的已验证迁移。");
+  const batchKey = resuming ? state.batchKey : `wallet-reconciliation-batch:${state.scanId}:${reconciliationRequestId("request")}`;
+  openDialog(
+    "确认执行已验证迁移",
+    `<p>可自动修正：<strong>${preview.autoReconcilableCount}</strong></p><p>人工复核：<strong>${preview.manualReviewCount}</strong>（将跳过）</p><p class="dialog-note">此操作不会改变钱包余额，只会将经过证据验证的联盟积分镜像调整为当前钱包余额。</p><label class="field-label">批次原因（至少 5 个字符）<input class="dialog-input" id="wallet-batch-reason" autocomplete="off" /></label><label class="field-label">确认文字<input class="dialog-input" id="wallet-batch-confirmation" autocomplete="off" /></label><code>APPLY VERIFIED WALLET MIRROR BATCH</code>`,
+    "执行已验证迁移",
+    async () => {
+      if (reconciliationExecutionInFlight || reconciliationScanInFlight) return;
+      const reason = document.querySelector("#wallet-batch-reason")?.value.trim() || state.batchReason || "";
+      const confirmationText = document.querySelector("#wallet-batch-confirmation")?.value.trim() || "";
+      if (reason.length < 5) throw new Error("请填写至少 5 个字符的批次原因。");
+      if (confirmationText !== "APPLY VERIFIED WALLET MIRROR BATCH") throw new Error("确认文字必须完全匹配。");
+      let cursor = resuming ? (state.batchCursor || "") : "";
+      let totals = { applied: 0, skipped: 0, stale: 0, failed: 0, manualReview: 0 };
+      reconciliationExecutionInFlight = true;
+      reconciliationBatchState = { ...state, scanStatus: "executing", batchKey, batchCursor: cursor, batchReason: reason, progress: "正在分块执行已验证迁移…" };
+      renderHistoricalReconciliationPanel();
+      try { do {
+        const result = await callMoneyFunction("applyAffiliateWalletReconciliationBatch", { scanId: state.scanId, confirmationText, reason, idempotencyKey: batchKey, cursor });
+        cursor = result.nextCursor || "";
+        ["applied", "skipped", "stale", "failed", "manualReview"].forEach((key) => { totals[key] += Number(result[key] || 0); });
+        reconciliationBatchState = { ...reconciliationBatchState, batchCursor: cursor, progress: `执行中：成功 ${totals.applied}，跳过 ${totals.skipped}，过期 ${totals.stale}，失败 ${totals.failed}` };
+        renderHistoricalReconciliationPanel();
+      } while (cursor);
+      const refreshed = await callMoneyFunction("previewAffiliateWalletReconciliationBatch", { scanId: state.scanId });
+      reconciliationBatchState = { ...reconciliationBatchState, scanStatus: refreshed.status, preview: refreshed, progress: `执行完成：成功 ${totals.applied}，跳过 ${totals.skipped}，过期 ${totals.stale}，失败 ${totals.failed}` };
+      renderHistoricalReconciliationPanel();
+      closeDialog();
+      showToast(reconciliationBatchState.progress);
+      } finally {
+        reconciliationExecutionInFlight = false;
+        renderHistoricalReconciliationPanel();
+      }
+    }
+  );
 }
 
 function renderPagerControl(type, panelSelector, loadedCount = 0) {
@@ -4809,6 +4932,37 @@ async function openClearTestDataPreview() {
 
 function handleAdminButton(button) {
   const text = button.textContent.trim();
+  if (button.id === "start-wallet-affiliate-scan") {
+    if (!requireAdminPermission("users")) return;
+    scanHistoricalWalletReconciliation().catch((error) => {
+      reconciliationBatchState = { ...reconciliationBatchState, scanStatus: "failed", progress: error.message || "扫描失败" };
+      renderHistoricalReconciliationPanel();
+      showToast(error.message || "扫描失败");
+    });
+    return;
+  }
+  if (button.id === "preview-wallet-affiliate-batch") {
+    if (!requireAdminPermission("users") || !reconciliationBatchState?.scanId) return;
+    callMoneyFunction("previewAffiliateWalletReconciliationBatch", { scanId: reconciliationBatchState.scanId })
+      .then((preview) => {
+        reconciliationBatchState = { ...reconciliationBatchState, preview, scanStatus: preview.status, progress: "已刷新迁移预览。" };
+        renderHistoricalReconciliationPanel();
+      })
+      .catch((error) => showToast(error.message || "无法预览迁移"));
+    return;
+  }
+  if (button.id === "more-wallet-auto-preview" || button.id === "more-wallet-manual-preview") {
+    if (!requireAdminPermission("users")) return;
+    loadMoreHistoricalReconciliationPreview(button.id === "more-wallet-auto-preview" ? "automatic" : "manual")
+      .catch((error) => showToast(error.message || "无法加载更多对账记录"));
+    return;
+  }
+  if (button.id === "apply-wallet-affiliate-batch") {
+    if (!requireAdminPermission("users")) return;
+    try { openHistoricalReconciliationBatchConfirmation(); }
+    catch (error) { showToast(error.message || "无法执行迁移"); }
+    return;
+  }
   if (button.id === "export-finance-button") {
     if (!requireAdminPermission("finance")) return;
     exportFinanceReportCsv();

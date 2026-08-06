@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 
 const root = path.resolve(__dirname, "..");
 let failures = 0;
@@ -15,6 +16,31 @@ function check(condition, message) {
   }
   failures += 1;
   console.error(`fail - ${message}`);
+}
+
+function reconciliationEvidenceBehaviorPasses() {
+  const test = String.raw`
+    const api = require('./functions/simplepay').__reconciliationEvidenceTestApi;
+    const order = { id: 'ORD-1', paymentReference: 'ORD-1', externalOrderId: 'INT-1', intentId: 'INT-1', posOrderId: 'POS-1' };
+    const refund = { id: 'REF-1' };
+    const goodPayment = { id: 'merchant-payment:ORD-1', accountId: 'U1', amount: 600, sourceType: 'payment', status: 'completed', orderId: 'ORD-1' };
+    const missingStatus = { id: 'merchant-payment:ORD-1', accountId: 'U1', amount: 600, sourceType: 'payment', orderId: 'ORD-1' };
+    const wrongOrder = { ...goodPayment, orderId: 'ORD-X' };
+    const goodRefund = { id: 'merchant-refund:REF-1', accountId: 'U1', amount: 600, sourceType: 'refund', statusClass: 'success', refundRequestId: 'REF-1', orderId: 'ORD-1' };
+    if (!api || !api.isSuccessfulPaymentRecord(goodPayment) || api.isSuccessfulPaymentRecord(missingStatus)) process.exit(2);
+    if (api.paymentLedgerReferenceDecision(goodPayment, order) !== 'matched' || api.paymentLedgerReferenceDecision(wrongOrder, order) !== 'conflict') process.exit(3);
+    if (api.refundLedgerReferenceDecision(goodRefund, refund, order) !== 'matched') process.exit(4);
+    const risks = api.refundHistoryRiskReasons([{ id: 'R1', orderId: 'ORD-1', status: 'completed' }, { id: 'R2', orderId: 'ORD-2', status: 'approved' }], false);
+    const conflict = api.refundHistoryRiskReasons([{ id: 'R1', orderId: 'ORD-1', status: 'completed' }, { id: 'R2', orderId: 'ORD-1', status: 'rejected' }], false);
+    const unresolved = api.refundHistoryRiskReasons([{ id: 'R1', orderId: 'ORD-1', status: 'completed' }, { id: 'R2', orderId: 'ORD-2', status: 'pending' }], false);
+    if (!risks.includes('multiple-successful-refunds') || !conflict.includes('conflicting-refund-history') || !unresolved.includes('unresolved-refund-request')) process.exit(5);
+  `;
+  try {
+    execFileSync(process.execPath, ["-e", test], { cwd: root, env: { ...process.env, RECONCILIATION_EVIDENCE_TEST: "1" }, stdio: "pipe" });
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 function includesAll(file, tokens) {
@@ -471,7 +497,7 @@ const paymentFunctionStart = k6SimplePayFunctions.indexOf("async function create
 const paymentFunctionEnd = k6SimplePayFunctions.indexOf("exports.createMerchantPayment", paymentFunctionStart);
 const merchantPaymentCore = k6SimplePayFunctions.slice(paymentFunctionStart, paymentFunctionEnd);
 const merchantRefundStart = k6SimplePayFunctions.indexOf("exports.reviewMerchantRefund = onCall");
-const merchantRefundEnd = k6SimplePayFunctions.indexOf("exports.previewAffiliateWalletReconciliation", merchantRefundStart);
+const merchantRefundEnd = k6SimplePayFunctions.indexOf("exports.previewAffiliateWalletReconciliation = onCall", merchantRefundStart);
 const merchantRefundCore = k6SimplePayFunctions.slice(merchantRefundStart, merchantRefundEnd);
 const posReversalStart = affiliateFunctions.indexOf("async function reversePosOrderData");
 const posReversalEnd = affiliateFunctions.indexOf("exports.reversePosOrder = onCall", posReversalStart);
@@ -497,6 +523,18 @@ const reconciliationRules = affiliateRules.slice(reconciliationRulesStart, recon
 const adminLogRulesStart = affiliateRules.indexOf("match /amsystemAdminLogs/{logId}");
 const adminLogRulesEnd = affiliateRules.indexOf("match /affiliateAgreements/{agreementId}", adminLogRulesStart);
 const adminLogRules = affiliateRules.slice(adminLogRulesStart, adminLogRulesEnd);
+const reconciliationScanStart = k6SimplePayFunctions.indexOf("exports.scanAffiliateWalletReconciliation = onCall");
+const reconciliationScanEnd = k6SimplePayFunctions.indexOf("exports.previewAffiliateWalletReconciliationBatch = onCall", reconciliationScanStart);
+const reconciliationScanFunction = k6SimplePayFunctions.slice(reconciliationScanStart, reconciliationScanEnd);
+const reconciliationBatchPreviewStart = k6SimplePayFunctions.indexOf("exports.previewAffiliateWalletReconciliationBatch = onCall");
+const reconciliationBatchPreviewEnd = k6SimplePayFunctions.indexOf("async function applyReconciliationScanItem", reconciliationBatchPreviewStart);
+const reconciliationBatchPreviewFunction = k6SimplePayFunctions.slice(reconciliationBatchPreviewStart, reconciliationBatchPreviewEnd);
+const reconciliationBatchApplyStart = k6SimplePayFunctions.indexOf("exports.applyAffiliateWalletReconciliationBatch = onCall");
+const reconciliationBatchApplyEnd = k6SimplePayFunctions.indexOf("exports.previewAffiliateWalletReconciliation = onCall", reconciliationBatchApplyStart);
+const reconciliationBatchApplyFunction = k6SimplePayFunctions.slice(reconciliationBatchApplyStart, reconciliationBatchApplyEnd);
+const reconciliationScanRulesStart = affiliateRules.indexOf("match /walletAffiliateReconciliationScans/{scanId}");
+const reconciliationScanRulesEnd = affiliateRules.indexOf("match /amsystemAdminOperations/{operationId}", reconciliationScanRulesStart);
+const reconciliationScanRules = affiliateRules.slice(reconciliationScanRulesStart, reconciliationScanRulesEnd);
 
 check(
   !directAffiliateRefundRequestWrite
@@ -542,7 +580,7 @@ check(
     && affiliateRefundCore.includes("await applyWalletAndAffiliatePointChange(tx")
     && k6SimplePayFunctions.includes("exports.previewAffiliateWalletReconciliation = onCall")
     && k6SimplePayFunctions.includes("recommendedMirrorValue: walletBalance")
-    && !k6SimplePayFunctions.slice(k6SimplePayFunctions.indexOf("exports.previewAffiliateWalletReconciliation"), k6SimplePayFunctions.indexOf("exports.submitMerchantSettlement")).includes("tx.set")
+    && !k6SimplePayFunctions.slice(k6SimplePayFunctions.indexOf("exports.previewAffiliateWalletReconciliation = onCall"), k6SimplePayFunctions.indexOf("exports.applyAffiliateWalletReconciliation = onCall", k6SimplePayFunctions.indexOf("exports.previewAffiliateWalletReconciliation = onCall"))).includes("tx.set")
     && k6SimplePayScript.includes('callMoneyFunction("createMerchantPayment"')
     && !k6SimplePayScript.slice(k6SimplePayScript.indexOf("async function payMerchant"), k6SimplePayScript.indexOf("async function loadMerchants")).includes("runTransaction")
     && k6SimplePayScript.includes("未识别商家收款码，无法安全扣除钱包余额")
@@ -607,6 +645,73 @@ check(
     && !k6SimplePayFunctions.includes("applyAllAffiliateWallet")
     && !k6SimplePayFunctions.includes("automatic-reconciliation"),
   "Wallet-to-affiliate reconciliation is admin-only, preview-guarded, audited, and never changes wallet funds"
+);
+
+check(
+  reconciliationEvidenceBehaviorPasses(),
+  "Reconciliation evidence behavior rejects missing status and conflicting ledger references"
+);
+
+check(
+  reconciliationScanFunction.includes("await requireAdmin(request)")
+    && reconciliationScanFunction.includes("RECONCILIATION_SCAN_LIMIT")
+    && reconciliationScanFunction.includes("orderBy(admin.firestore.FieldPath.documentId())")
+    && reconciliationScanFunction.includes("startAfter(cursor)")
+    && reconciliationScanFunction.includes("analyzeWalletReconciliationCandidate")
+    && reconciliationScanFunction.includes('collection("walletAffiliateReconciliationScans")')
+    && reconciliationScanFunction.includes('collection("walletAffiliateReconciliationScanItems")')
+    && !reconciliationScanFunction.includes("tx.update(walletRef")
+    && !reconciliationScanFunction.includes("tx.set(walletRef")
+    && k6SimplePayFunctions.includes("legacy-order-walletUserId")
+    && k6SimplePayFunctions.includes("auto-reconcilable-legacy-consumption")
+    && k6SimplePayFunctions.includes("auto-reconcilable-legacy-refund")
+    && k6SimplePayFunctions.includes("evidence-insufficient-or-ambiguous")
+    && k6SimplePayFunctions.includes("exactPaymentEvidence")
+    && k6SimplePayFunctions.includes("exactRefundEvidence")
+    && k6SimplePayFunctions.includes("merchantOrderId")
+    && k6SimplePayFunctions.includes("paymentReference")
+    && k6SimplePayFunctions.includes("revalidatedAt")
+    && k6SimplePayFunctions.includes("multiple-successful-refunds")
+    && k6SimplePayFunctions.includes("unresolved-refund-request")
+    && k6SimplePayFunctions.includes("missing-ledger-order-reference")
+    && k6SimplePayFunctions.includes("ledger-order-reference-conflict")
+    && k6SimplePayFunctions.includes("missing-ledger-refund-reference")
+    && k6SimplePayFunctions.includes("ledger-refund-reference-conflict")
+    && !k6SimplePayFunctions.includes("amount-only")
+    && k6SimplePayFunctions.includes("released-reward-exists")
+    && reconciliationBatchPreviewFunction.includes('["ready", "executing", "completed", "partial"]')
+    && reconciliationBatchPreviewFunction.includes("totalAutoReconcilableCount")
+    && reconciliationBatchPreviewFunction.includes("autoNextCursor")
+    && !reconciliationBatchPreviewFunction.includes("limit(200)")
+    && reconciliationBatchApplyFunction.includes("APPLY VERIFIED WALLET MIRROR BATCH")
+    && reconciliationBatchApplyFunction.includes("RECONCILIATION_EXECUTION_LIMIT")
+    && reconciliationBatchApplyFunction.includes("applyReconciliationScanItem")
+    && reconciliationBatchApplyFunction.includes("nextCursor")
+    && reconciliationBatchApplyFunction.includes("manualReview")
+    && k6SimplePayFunctions.includes("walletBalance !== Number(item.walletBalance)")
+    && !reconciliationBatchApplyFunction.includes("tx.update(walletRef")
+    && !reconciliationBatchApplyFunction.includes("tx.set(walletRef")
+    && k6SimplePayFunctions.includes("async function applyReconciliationScanItem")
+    && k6SimplePayFunctions.includes("tx.update(affiliateRef")
+    && k6SimplePayScript.includes("scanHistoricalWalletReconciliation")
+    && k6SimplePayScript.includes("openHistoricalReconciliationBatchConfirmation")
+    && k6SimplePayScript.includes("APPLY VERIFIED WALLET MIRROR BATCH")
+    && k6SimplePayScript.includes("reconciliationScanInFlight")
+    && k6SimplePayScript.includes("reconciliationExecutionInFlight")
+    && k6SimplePayScript.includes("loadMoreHistoricalReconciliationPreview")
+    && affiliateRules.includes("match /wallets/{userId}")
+    && affiliateRules.includes("allow delete: if false;")
+    && !k6SimplePayScript.includes("wallet-batch-target")
+    && reconciliationScanRules.includes("match /walletAffiliateReconciliationScans/{scanId}")
+    && reconciliationScanRules.includes("match /walletAffiliateReconciliationScanItems/{itemId}")
+    && reconciliationScanRules.includes("match /walletAffiliateReconciliationBatches/{batchId}")
+    && reconciliationScanRules.includes("match /walletAffiliateReconciliationActiveBatches/{adminId}")
+    && reconciliationScanRules.includes("allow create, update, delete: if false;")
+    && k6SimplePayFunctions.includes("getActiveAffiliateWalletReconciliationBatch")
+    && k6SimplePayFunctions.includes("activeReconciliationBatchId")
+    && !k6SimplePayFunctions.includes("onSchedule")
+    && !k6SimplePayScript.includes("scanHistoricalWalletReconciliation();"),
+  "Historical wallet reconciliation scans are paged, evidence-based, admin-confirmed, and never auto-run"
 );
 
 if (failures) {

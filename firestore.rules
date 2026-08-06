@@ -632,7 +632,7 @@ service cloud.firestore {
             );
           allow update: if payWalletFinancialStateIsUnchanged()
             && (payIsAdmin() || (payIsSelf(userId) && payWalletProfileUpdateIsSafe()));
-          allow delete: if payIsAdmin();
+          allow delete: if false;
         }
     
         match /merchants/{merchantId} {
@@ -914,7 +914,7 @@ service cloud.firestore {
           allow create: if affIsAdmin() || affUserCreateIsSafe(userId);
           allow update: if affUserFinancialStateIsUnchanged()
             && (affIsAdmin() || affUserUpdateIsSafe(userId));
-          allow delete: if affIsAdmin();
+          allow delete: if false;
         }
     
         match /amsystemOrders/{orderId} {
@@ -980,6 +980,26 @@ service cloud.firestore {
         }
 
         match /walletAffiliateReconciliations/{reconciliationId} {
+          allow read: if affIsAdmin();
+          allow create, update, delete: if false;
+        }
+
+        match /walletAffiliateReconciliationScans/{scanId} {
+          allow read: if affIsAdmin();
+          allow create, update, delete: if false;
+        }
+
+        match /walletAffiliateReconciliationScanItems/{itemId} {
+          allow read: if affIsAdmin();
+          allow create, update, delete: if false;
+        }
+
+        match /walletAffiliateReconciliationBatches/{batchId} {
+          allow read: if affIsAdmin();
+          allow create, update, delete: if false;
+        }
+
+        match /walletAffiliateReconciliationActiveBatches/{adminId} {
           allow read: if affIsAdmin();
           allow create, update, delete: if false;
         }
